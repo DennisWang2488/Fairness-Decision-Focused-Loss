@@ -1,0 +1,367 @@
+
+\section{Introduction} \label{sec:intro}
+Many real-world applications require consideration of fairness throughout the chain of decisions. When public health agencies distribute scarce medical resources to healthcare facilities in different regions, they need to forecast demands and then develop allocation plans accordingly. Fairness in forecasts ensures that demands from disadvantaged regions are not overlooked, while fair allocations provide appropriate prioritization among all facilities. Similarly, the planning and distribution of other social resources, such as urban transportation and education funding, encounter fairness challenges from understanding heterogeneous needs and attaining a fair distribution of benefits. Another domain, where a holistic approach to fairness is necessary, is hiring. In the complicated process of sourcing candidates, screening applications, and choosing candidates to interview and hire, bias and unfairness in any step could perpetuate systematic inequalities and undermine organizational diversity. These examples highlight the value of end-to-end fairness integration across the entire decision process. 
+
+Drawing motivation from the above examples, we study a generic decision process that consists of a prediction task and an optimization task. The prediction task uses data to forecast uncertain or unknown quantities, which are needed to formulate the optimization model for choosing the optimal actions. To describe the process from the other direction, the outcomes are determined by the optimal decisions, which depend on the predictions and underlying data. The prediction task should be free of unfair discrimination, and the optimization task should pursue the desirable equity performance in the final outcomes. A conventional strategy addresses these two tasks sequentially: predictions are made first and then input into the optimization model. In two-stage predict-then-optimize (PTO) approaches, fairness can be handled independently in each task, that is, we apply fair prediction followed by fair optimization. There is a large number of fair machine learning algorithms for seeking group-level or individual-level fairness in predictions \cite{mehrabi2021survey}. In optimization models, fairness measures capturing various equity perspectives can be formulated as objectives or constraints \cite{Chen2023}. 
+
+These separate fairness handling methods overlook the potential interconnection and misalignment of fairness from different decision steps. For example, optimizing fair decisions based on fair predictions may still generate unfair outcomes. Consider a policymaker allocating a new type of healthcare service to local communities, where rural areas tend to have lower demands than urban areas due to a historical lack of healthcare access and awareness. Moreover, such historical bias exist in data and causes demand predictions without any fairness consideration to underestimate some rural areas' demands. In this problem, a fair prediction model will try to increase the demand forecasts for rural areas to reduce disparity. However, these forecast increases would cause some rural areas to be less prioritized than their actual levels, thus perpetuating the systematic inequity in healthcare access between rural and urban areas. To seek fair outcomes, a more desirable alternative is to integrate fair prediction and fair optimization in an end-to-end manner to link prediction fairness directly to decision fairness. 
+
+In this paper, we formulate end-to-end fairness optimization (E2EFO) as a paradigm for making data-driven fair decisions. E2EFO aims to optimize fairness in decisions generated based on predictions. We develop fair decision-focused learning (FDFL) as an integrated approach to E2EFO. The FDFL framework builds upon standard decision-focused learning (DFL), an end-to-end machine learning approach that directly trains a prediction model to optimize downstream decision accuracy \cite{donti2017task,wilder2019melding,spo2020}. DFL is an alternative to the conventional two-stage PTO approaches, where a prediction model is trained separately from the decision optimization process to optimize the predictive accuracy. In contrast, DFL emphasizes obtaining accurate decisions, measured in terms of the decision objective, despite possible prediction errors. Recent works have revealed limitations of PTO approaches, for example, \cite{donti2017task} demonstrated the possible mismatch between prediction and decision goals and argued that prediction-focused methods are prone to model selection bias. \cite{wang2024} further conceptualized the gaps between good predictions and good decisions due to various factors including treatment effect heterogeneity and feedback loops between decisions and predicted outcomes. The integrated structure of DFL methods mitigates these limitations and supports an improved alignment between prediction accuracy and decision accuracy. 
+
+Our FDFL framework considers fairness in end-to-end decisions. In FDFL, prediction fairness focuses on eliminating undesirable disparity in forecasts and is formulated with constraints or regularization in terms of the predictor model. We note that all fairness formulations in existing in-processing fair supervised machine learning methods \cite{mehrabi2021survey} are applicable to capture prediction fairness in FDFL. Decision fairness characterizes the equity goal of decision outcomes and is represented in the objective function of the optimization task. More specifically, the optimization objective is a utility-based fairness measure assessing the desirability of a decision's utility distribution with respect to the underlying fairness perspective. Such fairness measures are broadly applied in operations research and mechanism design \cite{Chen2023,finocchiaro2021bridging}. FDFL aims to learn a prediction model to optimize fair decisions. Compared with standard DFL, FDFL aligns prediction and optimization performances in terms of both accuracy and fairness. 
+
+We make the following contributions in this paper. First, we formulate the E2EFO problem and develop the FDFL framework to find optimal fair decisions. Second, we propose gradient-based algorithms for FDFL training. In particular, we utilize the closed-form solution to a specific class of alpha fairness optimization model to design a highly efficient specialized FDFL algorithm for this class of problem. Additionally, we present a perturbation based gradient approximation method to support FDFL with a general fair optimization decision model. Lastly, we demonstrate the benefits of FDFL in comparison with traditional two-stage approaches through a stylized example for theoretical intuition and real data based experiments for empirical insights. 
+
+The rest of the paper is organized as follows. Section \ref{sec:literature} reviews the related works on DFL versus two-stage PTO and fairness methods in machine learning and optimization. 
+Section \ref{sec:prob} describes the problem formulation to E2EFO and formally presents the FDFL framework. Section \ref{sec:alg} discusses training algorithms for implementing FDFL. In Section \ref{sec:exp}, we apply FDFL and two-stage PTO with fairness consideration on a real application motivated medical resource allocation problem. Besides comparing the performances between FDFL and PTO, we also compare different FDFL algorithms to understand their runtime, training, and decision performances. Lastly, Section \ref{sec:conclusion} concludes the paper and discusses future directions to investigate. 
+
+\section{Related Works} \label{sec:literature}
+\subsection{Predict-then-Optimize and Decision-Focused Learning}
+
+Data-driven decision-making frequently encounters scenarios where optimization models depend on parameters that must be estimated from data. Two primary paradigms have emerged to address this challenge: Prediction-Focused Learning (PFL), also known as Predict-then-Optimize (PTO), and Decision-Focused Learning (DFL), also known as End-to-End Learning (E2E). The conventional PTO approach follows a two-stage process, first employing machine learning to predict unknown parameters from relevant features, then using these predictions as deterministic inputs to optimize decisions. While PTO aligns well with classical stochastic optimization \cite{bertsimas2020predictive}, it has fundamental limitations arising from its segregated structure. Most critically, the prediction stage operates independently of downstream decision-making, potentially leading to suboptimal decisions even when predictions appear accurate \cite{spo2020, wilder2019melding, qi2022integrating}. DFL addresses these limitations by integrating prediction and optimization into a unified framework. By embedding the optimization problem directly into the predictive model's training process, DFL enables the prediction component to anticipate its impact on final decisions. The key challenge in DFL lies in computing gradients through the optimization procedure to train the predictive model. 
+
+Three main approaches have emerged to address this challenge: differentiation through optimization, surrogate optimization, and surrogate loss functions. Early DFL methods focused on differentiation through optimization, primarily dealing with linear programming models in the downstream decision task \cite{wilder2019melding, spo2020, berthet2020learning}. These approaches have since expanded to handle quadratic programming \cite{amos2017optnet, agrawal2019differentiable} , and general nonlinear optimization \cite{roland2021learning}. Recent innovations include Negative Identity Backpropagation \cite{sahoo2022backpropagation} and Perturbation Gradient Loss \cite{huang2024learning}, which provide more efficient ways to compute gradients through optimization procedures. The challenge of non-differentiability in optimization has led to the development of surrogate loss approaches. Smart Predict-then-Optimize loss \cite{spo2020} and Noise Contrastive Estimation \cite{mulamba2020contrastive} provide convex surrogates that upper bound the decision regret. 
+
+More recent advances include Learning Optimal Decision Losses (LODL) \cite{roland2021learning}, which learns instance-specific surrogate losses but faces computational challenges due to its per-instance training requirement. The Landscape Surrogate (LANCER) model \cite{zharmagambetov2023landscape} addresses these limitations by learning a global surrogate that can generalize across problem instances, significantly reducing computational overhead while maintaining performance. Additionally, the recently proposed Locally Convex Global Loss Network (LCGLN) offers a novel approach using partial input convex neural networks to guarantee convexity for chosen inputs while maintaining non-convex structure where needed.
+
+Research comparing PTO and DFL has yielded important theoretical insights about their relative performance. Cameron et al. \cite{cameron2022perils} demonstrated that DFL's advantages stem from its ability to adaptively handle stochastic prediction targets, while PTO must make an a priori choice about which statistics of the target distribution to model. They showed that the performance gap between PTO and DFL is closely related to the price of correlation in stochastic optimization, and identified scenarios where PTO can perform unboundedly worse than DFL, particularly when multiple prediction targets are combined to obtain each objective function coefficient. Elmachtoub et al. \cite{elmachtoub2023estimate} revealed when the model class is well-specified and data is sufficient, PTO can outperform integrated approaches (such as DFL) in terms of regret stochastic dominance. These theoretical results have useful implications for our FDFL framework. Since fairness objectives often involve multiple interrelated predictions and typically operate under some degree of model misspecification, e.g., due to historical biases in training data, the theoretical advantages of DFL may be particularly relevant. Additionally, as the tension between prediction accuracy and fairness creates additional complexity not captured in existing theoretical analyses, our work lays a foundation for further theoretical study related to end-to-end fairness. 
+
+% Consider a stochastic optimization problem where we aim to minimize $v_0(w) := \mathbb{E}_P[c(w,z)]$, with $w$ being the decision variable, $z$ a random variable following an unknown ground-truth distribution $P$, and $c(\cdot,\cdot)$ the cost function. To solve this problem with data, we construct a parametric family of distributions $\{P_\theta: \theta \in \Theta\}$. A model is considered \textit{well-specified} if the true distribution $P$ belongs to this parametric family, i.e., there exists some $\theta_0 \in \Theta$ such that $P = P_{\theta_0}$. In this case, with sufficient data, we can theoretically recover the true distribution through parameter estimation. Conversely, a model is \textit{misspecified} if $P \notin \{P_\theta: \theta \in \Theta\}$, meaning no parameter choice can exactly reproduce the true distribution.
+
+Compared to existing literature, our work introduces two key advancements. First, we study fairness decision objectives that are typically nonlinear and explore the applicability of state-of-the-art DFL algorithms to handle nonlinearity. Second, while standard DFL addresses a trade-off between prediction accuracy and decision accuracy, our FDFL framework connects prediction and decision quality along the dimensions of both accuracy and fairness. 
+
+\subsection{Fairness in Decision Making}
+Fairness in decision-making has been extensively studied, with growing interest in integrating fairness into machine learning (ML) and optimization. These fields are characterized by different fairness definitions and goals. While fair ML methods focus on achieving parity in predictions to remove discriminative bias against groups or individuals, fair optimization models emphasize equitable outcomes and impacts as measured by utilities. Among the vast literature, we next review selected works in each direction to give a necessary overview and highlight papers that are more relevant to end-to-end fair decision-making.
+
+Statistical fairness metrics dominate the field of fair ML. These metrics aim to ensure decisions from ML models, e.g., predictions, are free from discrimination against protected groups. Examples of widely studied measures include demographic parity \cite{dwork2012fairness}, equalized odds \cite{hardt2016equality}, accuracy parity \cite{berk2021fairness}, predictive rate parity \cite{kleinberg2016inherent} , and individual fairness \cite{dwork2012fairness}. Majority of fair ML methods aim to address biases in standard ML models through pre-, in-, or post-processing techniques. Pre-processing methods modify input data to eliminate potential (e.g., \cite{zemel2013learning, calmon2017optimized}). In-processing methods incorporate fairness during model training by including fairness components as constraints or objective regularizers (e.g., \cite{zafar2019fairness, olfat2018spectral, donini2018empirical}). Lastly, post-processing methods adjust model outputs to attain desirable fairness (e.g., \cite{hardt2016equality, alabdulmohsin2020fair}). The survey paper \cite{mehrabi2021survey} provides a comprehensive review of fairness definitions and techniques in machine learning.
+
+Fairness in optimization typically employs utility-based metrics grounded in social welfare theory \cite{Chen2023}. This is a primary methodology to make fair decisions in operations research and mechanism design. Utility values capture the benefits or costs people associate with decisions of interest, and utility-based fairness metrics evaluate the desirability of utility distributions. There are three broad categories of metrics capturing different fairness perspectives. First, equality can be viewed as a proxy of fairness. Common metrics reflecting this perspective are inequality metrics, such as Gini index \cite{dalton1920measurement}, which measures the disparity in utility outcomes. The second category emphasizes fairness for the disadvantaged, and the best known definition is the Rawlsian fairness criteria \cite{rawls1971theory} that seek to prioritize people with lower utilities. The third category reflects a combined view balancing fairness and efficiency, which focuses solely on optimizing the overall utilities regardless of individual differences. A popular combined metric is $\alpha$-fairness \cite{mo2000fair}, which can characterize the full range from Rawlsian fairness to efficiency. Applications of fairness optimization span various domains, such as, fair resource allocation in telecommunication networks \cite{luss1999equitable, ogryczak2002equitable}, balancing fairness and efficiency in assigning projects to university students \cite{chiarandini2019handling}, fair food bank operations \cite{EisTzu19} and disaster preparation \cite{Sibel2019inequity} in humanitarian operations.
+
+Along with the significant progress in both directions, recent works call for integrating ML and optimization perspectives to address outcome-centric fairness. One key motivation is the potential insufficiency of relying on fair predictions alone to ensure equitable outcomes and impacts. For example, \cite{liu2018delayed} looked into the delayed impacts of fairness in ML, and demonstrated that inserting fairness, which aims to benefit certain protected groups, in ML model does not guarantee long-term improvements for the targeted groups. \cite{scantamburlo2024prediction} proposed a conceptual framework distinguishing the roles of prediction modeler and decision maker in a decision-making system, and argued the importance of a holistic approach for embedding fairness throughout the entire system. Another strong motivation for bridging the two perspectives is that many practical problems naturally require both ML and optimization. The position paper \cite{finocchiaro2021bridging} provide a comprehensive discussion of opportunities for combining ML and mechanism design, an important application area of optimization, to address fairness in complex decisions. More concretely, \cite{corbett2023measure, chohlas2024learning} explore the application of a consequentialist approach, where the fairness of a decision algorithm or policy is evaluated based on the produced real-world outcomes. \cite{corbett2023measure} argued that traditional fairness definitions in ML could inadvertently harm the groups they intend to protect, which shares common ground with \cite{liu2018delayed}. Building on the consequentialist principles, \cite{chohlas2024learning} presented a practical framework that includes the elicitation of stakeholder preferences and the optimization of preference-informed policies. The authors also developed a contextual bandit algorithm to operationalize this framework. 
+
+The integration of fair ML and optimization aligns with the goal of end-to-end decision-making, which indicates the potential of DFL techniques in attaining end-to-end fairness. There have been a few recent works that explored the incorporation of fairness into DFL for the task of learning a fair ranking. For example, \cite{kotary2022end} included fairness requirements with constraints in the ranking decision model and utilized the linearity of decision objectives to extend the DFL algorithm developed in \cite{spo2020}. In contrast, \cite{dinh2024learning} defined a fair ranking decision model with the optimization of ordered weighted average functions, and proposed a training algorithm with customized forward and backward propagation computation. Our work extends this literature by presenting a general paradigm for fair end-to-end optimization through FDFL algorithms. Compared with the mentioned prior works, we do not restrict the problem setup and study a general utility-based fairness optimization model as the decision problem.
+
+\section{Problem Formulation: End-to-End Fairness Optimization} \label{sec:prob}
+We consider a decision-making problem with $n$ stakeholders indexed by $i \in [n]= \{1,\ldots,n\}$. Let $\mathbf{d} = (d_1,\ldots,d_n) \in \mathbb{R}^n$ denote the decision vector, where $d_i$ represents the decision (e.g., resource allocation, selection probability) for the stakeholder $i$. The decisions must satisfy certain constraints represented by a feasible region $\mathcal{S} \subseteq \mathbb{R}^n$. We assume the feasible region $\mathcal{S}$ is non-empty, compact, and convex. Each stakeholder $i$ derives utility from their received decision according to a utility function $U_i: \mathbb{R} \rightarrow \mathbb{R}$, which characterizes $i$'s overall gains and costs from the decision. Let $\mathbf{u} = (u_1,\ldots,u_n)$ denote the utility vector where $u_i = U_i(d_i)$. The fairness of decisions is evaluated using a fairness measure $W: \mathbb{R}^n \rightarrow \mathbb{R}$ that maps utility vectors to scalar values. Higher values of $W$ indicate more desirable fairness properties. Formally, given $W$ and $\{U_i\}_{i=1}^n$, the fairness of decisions $\mathbf{d}$ is computed as: $W(\mathbf{d}) = W(U_1(d_1),\ldots,U_n(d_n))$. 
+
+The decision maker's objective is to find decisions that maximize fairness while satisfying feasibility constraints:
+\begin{equation} \label{eq:opt_prob}
+\begin{aligned}
+\max_{\mathbf{d}} \quad & W(\mathbf{d}) ~ \text{s.t.} \quad \mathbf{d} \in \mathcal{S}
+\end{aligned}
+\end{equation}
+%We assume that the fairness measure \( W \) is continuously subdifferentiable and concave, and that each utility function \( U_i \) is continuously subdifferentiable and monotonically increasing. Under these assumptions, the optimization problem \eqref{eq:opt_prob} is convex and possesses an optimal solution.
+We assume $W$ is concave in $\mathbf{d}$, which is satisfied when $W$ is a concave function and each utility function $U_i$ is concave and non-decreasing in $d_i$, or when $W$ is a convex function and each utility function $U_i$ is convex and non-increasing in $d_i$. When this model is fully specified, solving for the optimal decision is straightforward. We consider the case where some parameters of the decision model are not directly available and need to be estimated using data. Let $\mathbf{r}$ denote unknown parameters, and we suppose these parameters only exist in the decision objective. For clarity, we denote the objective function as $W(\mathbf{d}; \mathbf{r})$ to emphasize its dependence on both the decision variables and the unknown parameters. Note that the feasible region $\mathcal{S}$ does not depend on $\mathbf{r}$. In the \textit{full information} case where $\mathbf{r}$ is known, we represent the optimal solution to \eqref{eq:opt_prob} with $\mathbf{d^*}(\mathbf{r})$, which is the true optimal fair decision. In the \textit{limited information} case, we aim to make a data-driven decision, $\hat{\mathbf{d}}$, that is as close to the true decision as possible. To generate this decision, we can follow a \textbf{separate view} to first predict the unknown parameters with $\hat{\mathbf{r}}$ then solve the decision optimization model to obtain $\hat{\mathbf{d}} \coloneqq \mathbf{d^*}(\hat{\mathbf{r}})$, or adopt a \textbf{direct view} to predict $\hat{\mathbf{d}}$ without explicit parameter estimation. 
+
+Let $\mathcal{D} = \{\mathbf{x}_1, \dots, \mathbf{x}_n\}$ represent available data that contain features relevant to $\mathbf{r}$ or $\mathbf{d^*}(\mathbf{r})$. Due to potential historical biases in $\mathcal{D}$ and the underlying association with parameters or decisions, estimation of $\hat{\mathbf{r}}$ or $\hat{\mathbf{d}}$ using this dataset might perpetuate or amplify unfairness. Let $F$ represent prediction fairness criteria to incorporate. Besides optimizing the utility-based fairness in decision, we also require prediction models to attain satisfactory performance in terms of $F$, e.g., if $F$ measures a type of undesirable disparity in $\hat{\mathbf{r}}$, then $F(\hat{\mathbf{r}})$ should be sufficiently low. So far, we have formulated the \textbf{end-to-end fairness optimization} (E2EFO) problem. Next, we describe two-stage PTO and FDFL as two distinctive frameworks for solving E2EFO. 
+%Let $\mathcal{D} = \{(\mathbf{x}_i,\mathbf{r}_i)\}_{i=1}^m$ denote a training dataset of $m$ samples, where $\mathbf{x}_i \in \mathbb{R}^q$ is a feature vector and $\mathbf{r}_i$ contains the corresponding parameter values. Due to historical biases in data collection and societal inequities, direct estimation using $\mathcal{D}$ may perpetuate or amplify unfairness. Let $F: \mathbb{R}^p \times \mathcal{D} \rightarrow \mathbb{R}_+$ denote a prediction fairness criterion that measures undesirable disparities in parameter estimates.
+
+
+%A two-stage PTO approach is compatible with the separate view, that is, we begin with a prediction task to estimate unknown parameters, then optimize prediction-based decisions. Namely, we use $(\mathcal{D},\mathbf{r}) \coloneqq \{(\mathbf{x}_1, \mathbf{r}_1),\dots,(\mathbf{x}_n, \mathbf{r}_n)\}$ as training data to learn $f_{\theta}$ (parameterized by $\theta \in \Theta$) for estimating the unknown $\mathbf{r}_i$ with $\hat{\mathbf{r}}_i \coloneqq f_{\theta}(\mathbf{x}_i)$, then solve for $\mathbf{d^*}(\hat{\mathbf{r}})$ from \eqref{sys:dec1}. The prediction task needs to account for fairness to mitigate effects of historical bias. All fair supervised ML methods, as reviewed in Section \ref{sec:literature}, are applicable to this fair prediction task. We focus on in-processing methods that modify standard prediction error minimizing training models with fairness components. Let $L(\theta)$ denote the standard loss function, e.g., mean squared error in regression, and $F(\theta, \mathcal{D})$ capture disparity or unfairness to reduce. The training problem can be formulated as constrained by fairness, i.e., $\min_{\theta \in \Theta} L(\theta) ~ \text{s.t.} ~ F(\theta, \mathcal{D}) \leq \epsilon$ where $\epsilon$ is a predefined tolerance level, or as including fairness regularization, i.e., $\min_{\theta \in \Theta} L(\theta) + \lambda F(\theta, \mathcal{D})$ where the hyperparameter $\lambda > 0$ regulates the trade-off between prediction accuracy and fairness. 
+
+A two-stage PTO approach, following the separate view, first estimates unknown parameters and then optimizes decisions. The prediction task uses $(\mathcal{D},\mathbf{r})$ as training data to learn a prediction model $f_{\theta}$ parameterized by $\theta \in \Theta$. Given a feature vector $\mathbf{x}_i$, the model produces parameter estimates $\hat{\mathbf{r}}_i \coloneqq f_{\theta}(\mathbf{x}_i)$. To train a predictor while accounting for fairness, all fair supervised ML methods, as reviewed in Section \ref{sec:literature}, are applicable. We focus on in-processing methods that modify standard ML models with fairness components. Let $L(\theta)$ denote the standard loss function, e.g., mean squared error in regression, and $F(f_\theta(\mathbf{x}), \mathcal{D})$ capture disparity or unfairness to reduce. The training problem can be formulated with a fairness constraint, i.e., $\min_{\theta \in \Theta} L(\theta) ~ \text{s.t.} ~ F(f_\theta(\mathbf{x}), \mathcal{D}) \leq \epsilon$ where $\epsilon$ is a predefined tolerance level, or fairness in regularization, i.e., $\min_{\theta \in \Theta} L(\theta) + \lambda F(f_\theta(\mathbf{x}), \mathcal{D})$ where the hyperparameter $\lambda > 0$ regulates the trade-off between prediction accuracy and fairness. After training $f_{\theta}$, decisions are obtained by solving for $\mathbf{d^*}(\hat{\mathbf{r}})$ from \eqref{eq:opt_prob}. 
+
+\iffalse
+Let \( f_\theta: \mathbb{R}^q \rightarrow \mathbb{R}^p \) be a prediction model parameterized by \( \theta \in \Theta \). Given features \( \mathbf{x} \), the model produces parameter estimates \( \hat{\mathbf{r}} = f_\theta(\mathbf{x}) \). The training problem with fairness constraints can be formulated as:
+\begin{equation} 
+\label{eq:two_stage}
+\begin{aligned}
+\min_{\theta \in \Theta} \quad & L(\theta) \\
+\text{s.t.} \quad & F(f_\theta(\mathbf{x}), \mathcal{D}) \leq \epsilon,
+\end{aligned}
+\end{equation}
+where \( L(\theta) \) is a prediction loss (e.g., mean squared error) and \( \epsilon > 0 \) is a fairness tolerance. Alternatively, fairness can be incorporated through regularization:
+\begin{equation} 
+\label{eq:two_stage_reg}
+\min_{\theta \in \Theta} \quad L(\theta) + \lambda F(f_\theta(\mathbf{x}), \mathcal{D}),
+\end{equation}
+where \( \lambda > 0 \) controls the fairness-accuracy tradeoff. After training, decisions are obtained by solving \eqref{eq:opt_prob} with the estimated parameters \( \hat{\mathbf{r}} \).
+\fi
+
+\subsection{Fair Decision Focused Learning} \label{sec:FDFL-framework}
+We propose Fair Decision Focused Learning (FDFL) as an end-to-end framework that directly optimizes decision quality while accounting for fairness. FDFL aims to generate fair decisions $\hat{\mathbf{d}}$ that are close to the unknown true optimal fair decisions, $\mathbf{d}^*(\hat{\mathbf{r}})$. Higher decision accuracy provides better fairness performance, as measured by $W(\hat{\mathbf{d}}; \mathbf{r})$. Within FDFL, there are two primary ways to integrate fair prediction as part of fair optimization. 
+
+\paragraph{Separate View.}
+FDFL uses the training data $(\mathcal{D},\mathbf{r})$ to learn a parametric predictor $f_{\theta}$ for estimating $\hat{\mathbf{r}} \coloneqq f_\theta(\mathbf{x})$. The final decisions are determined separately by solving \eqref{eq:opt_prob} with $\hat{\mathbf{r}}$ plugged in as parameters. The training model needs to reflect the goal of seeking decision accuracy, and there are  different ways to define the training loss function. First, a training model can seek a direct maximization of the decision objective, namely, to minimize the training loss $L_{decision}(\theta) = -W(\mathbf{d}^*(f_\theta(\mathbf{x}));\mathbf{r})$. We can also define the training problem to minimize the decision regret, $L_{regret}(\theta) = W(\mathbf{d}^*(f_\theta(\mathbf{x}));\mathbf{r}) - W(\mathbf{d^*}(\hat{\mathbf{r}});\mathbf{r})$, or minimize the mean square error between decisions, $L_{error}(\theta) = \lVert \mathbf{d}^*(f_\theta(\mathbf{x})) - \mathbf{d^*}(\hat{\mathbf{r}})\rVert$. It is easy to observe that all three training losses become zero when decisions are fully accurate, namely $\mathbf{d}^*(f_\theta(\mathbf{x})) = \mathbf{d^*}(\mathbf{r})$. We also remark that standard DFL methods have been proposed using these training loss definitions \cite{pyepo2023}. 
+
+Let $L_{DFL}(\mathbf{d}^*(f_\theta(\mathbf{x})))$ denote one of the above loss functions. In addition, we again use $F(f_\theta(\mathbf{x}), \mathcal{D})$ as a prediction fairness criterion representing disparity or unfairness to reduce. Then training under a separate view involves finding optimal $\theta$ in the following models:
+\begin{gather} \label{sys:dfl1}
+    \begin{aligned}
+       \text{Prediction fairness as constraint: } & \max_{\theta \in \Theta} L_{DFL}(\mathbf{d}^*(f_\theta(\mathbf{x}))) ~ \text{s.t.} ~ F(f_\theta(\mathbf{x}), \mathcal{D}) \leq \epsilon;  \\
+        \text{Or prediction fairness in regularization: } & \max_{\theta \in \Theta} L_{DFL}(\mathbf{d}^*(f_\theta(\mathbf{x})))  - \lambda F(f_\theta(\mathbf{x}), \mathcal{D}).
+    \end{aligned}
+\end{gather}
+
+\paragraph{Direct View.}
+Alternatively, following the direct view, FDFL learns from the training data $\mathcal{D}, \mathbf{d}^*(\mathbf{r})$ (a solver of \eqref{eq:opt_prob} is required to generate $\mathbf{d}^*(\mathbf{r})$) to obtain a decision predictor $M_{\theta}$, from which $\hat{\mathbf{d}} \coloneqq M_\theta(\mathbf{x})$. The previous training loss definitions also apply in this setup. For example, the decision objective loss can be written as $L_{decision}(\theta) = -W(M_{\theta}(\mathbf{x});\mathbf{r})$. We use $L_{DFL}(M_{\theta}(\mathbf{x}))$ to denote a training loss function. Training under a direct view solves the following models. 
+\begin{gather} \label{sys:dfl2}
+    \begin{aligned}
+       \text{Prediction fairness as constraint: } & \max_{\theta \in \Theta} L_{DFL}(M_{\theta}(\mathbf{x})) ~ \text{s.t.} ~ F(M_\theta(\mathbf{x}), \mathcal{D}) \leq \epsilon;  \\
+        \text{Or prediction fairness in regularization: } & \max_{\theta \in \Theta} L_{DFL}(M_{\theta}(\mathbf{x})) - \lambda F(M_\theta(\mathbf{x}), \mathcal{D}).
+    \end{aligned}
+\end{gather}
+
+This approach bypasses explicit parameter estimation. The training problem can be viewed as fitting a \emph{policy} or \emph{decision map} that yields the best fair decisions from the input features. As illustrated in standard DFL literature, e.g., \cite{zharmagambetov2023landscape}, $M_{\theta}$ acts as a smooth surrogate function to approximate the optimal decision objective and is especially useful to support efficient end-to-end learning when the original optimization \eqref{eq:opt_prob} is expensive to solve or has non-differentiable solutions.
+
+\iffalse
+We propose Fair Decision Focused Learning (FDFL) as an end-to-end framework that directly optimizes decision quality while accounting for fairness. Within FDFL, there are two primary ways to connect predictions and decisions:
+
+\paragraph{Separate View.}
+A parametric predictor \( f_\theta: \mathbb{R}^q \to \mathbb{R}^p \) first estimates the unknown parameters \(\hat{\mathbf{r}} = f_\theta(\mathbf{x})\). The decision \(\mathbf{d}^*(\hat{\mathbf{r}})\) is then found by solving the downstream optimization (e.g., \eqref{eq:opt_prob}). Training involves maximizing the decision objective (and fairness) w.r.t.\ \(\theta\):
+\begin{equation} 
+\label{eq:fdfl_sep}
+\max_{\theta \in \Theta} \; W\bigl(\mathbf{d}^*(f_\theta(\mathbf{x}))\bigr) \;-\; \lambda\,F\bigl(f_\theta(\mathbf{x}),\,\mathcal{D}\bigr).
+\end{equation}
+This approach preserves the notion of “parameter estimation” but integrates the final decision’s fairness into the training objective.
+
+\paragraph{Direct View.}
+Instead of predicting parameters, learn a decision predictor or \(M_\theta: \mathbb{R}^q \to \mathbb{R}^n\) that directly outputs decisions:
+\begin{equation}
+\label{eq:fdfl_dir}
+\max_{\theta \in \Theta} \; W\bigl(M_\theta(\mathbf{x})\bigr) \;-\; \lambda\,F\bigl(M_\theta(\mathbf{x}),\,\mathcal{D}\bigr).
+\end{equation}
+Here, \(\mathbf{d} = M_\theta(\mathbf{x})\) bypasses explicit parameter inference. Training can be viewed as fitting a \emph{policy} or \emph{decision map} that yields the best fair outcome from the input features.
+
+% Remark (LANCER)
+A learned surrogate such as \emph{LANCER} \cite{zharmagambetov2023landscape} can be introduced to approximate the solver’s objective landscape. This avoids repeated solver calls during training, since a smooth neural surrogate \(\mathcal{M}\) approximates \(\mathbf{d}^*(\hat{\mathbf{r}})\) or \(W\circ M_\theta\). The surrogate then provides gradients for backpropagation, enabling efficient end-to-end learning even when the original solver is expensive or non-differentiable.
+\fi
+
+%Compared to predict-then-optimize (PTO), which focuses on parameter-accuracy, FDFL prioritizes decision quality (and fairness) by integrating the downstream objective directly into the predictor’s training process. Both the separate and direct views can incorporate prediction fairness, but differ in how they handle the unknown parameters: by first predicting them explicitly (separate view) or forgoing them entirely (direct view).
+
+Compared to PTO which emphasizes accuracy of $\hat{\mathbf{r}}$, FDFL prioritizes the accuracy of prediction-based decisions $\hat{\mathbf{d}}$ to the true decisions $\mathbf{d^*}(\mathbf{r})$. Although both frameworks could integrate the same prediction and decision fairness components, their different training models lead to different fairness performances. In Section \ref{sec:example}, we present an example where two-stage PTO is insufficient to attain satisfactory decision fairness. Before this example, we explain further details about defining the decision fairness objective.
+
+\subsection{Utility-based Decision Fairness}
+A decision, such as resource allocation, provides benefits or harms to the decision recipient. The overall impact can be quantified by a utility function. The definition of utility functions varies with the decision contexts to reflect the needed impact assessment. We construct a generic class of utility functions that unify a broad range of utility specifications commonly studied in the literature. As discussed in the problem formulation, $d_i$ denotes the decision received by the stakeholder $i$. In addition, we suppose a stakeholder is characterized by three values: $q_i \in [0,1]$, the level of need or desert for the decision of interest; $g_i \in \mathbb{R}_{\geq 0}$, the utility gain rate for the received decision; $a_i \in \mathbb{R}_{\geq 0}$, the base utility level before receiving any decision. Note that $q_i$ accounts for all factors influencing how strongly the stakeholder requests, desires or needs the decision. For example, in the allocation of medical treatment resources, patients with higher medical risks would have higher desert levels. The other two values, $g_i$ and $a_i$, quantify a stakeholder's utilities by distinguishing the decision-induced change and the starting position. Variations in these values reflect stakeholders' inherent differences. To continue with the previous example, after receiving the same medical resource, two patients with different health levels may experience different health improvements. 
+
+For a fixed decision, it should provide a greater utility for stakeholders who need or deserve the decision more strongly (i.e., a larger $q_i$), gain utilities more effectively (i.e., a larger $g_i$), or are better off to start with (i.e., a larger $a_i$). Following this intuition, we compute $i$'s utility from decision $d_i$ as: 
+\begin{equation} \label{eq:udef}
+    U_i(d_i) = q_i (g_i d_i + a_i)^{\rho}.
+\end{equation}
+In this function, $\rho \in \mathbb{R}_+$ regulates the shape and rate of utility changes. When $\rho < 1$, the utility shows diminishing return with respect to decision, that is, utility increases more slowly as the decision amount increases. When $\rho = 1$, the utility function is linear, namely, a constant return rate from decision. When $\rho > 1$, the utility has increasing return. While we focus on a single decision for each stakeholder, we remark that this utility definition can be generalized to represent multiple decision types. For recipient $i$, let $\mathbf{d}_i = (d^1_i, \ldots, d^m_i)$ denote $i$'s assigned decisions for all $m$ types. Such heterogeneous decisions can characterize the allocation of multiple resources. The need/desert level, utility gain rate and base level for a recipient similarly extend to vectors: $\mathbf{q}_i = (q^1_i, \ldots, q^m_i)$, $\mathbf{g}_i = (g^1_i, \ldots, g^m_i)$, $\mathbf{a}_i = (a^1_i, \ldots, a^m_i)$. The power parameter $\rho$ also can vary across decision types. The general utility definition for recipient $i$ becomes: $U_i(\mathbf{d}_i) = \sum_{j=1}^m q^j_i (g^j_i d^j_i + a^j_i)^{\rho_j}$. 
+
+Given a utility distribution $\mathbf{u}$ generated from decisions $\mathbf{d}$, a fairness measure $W$ aggregates utility values into a scalar indicator of the desirability of $\mathbf{u}$ with respect to fairness. As reviewed in Section \ref{sec:literature}, there are many fairness measures that fall into three broad categories: fairness via equality, fairness for the disadvantaged, and combined measures balancing fairness and efficiency. Recall that we focus on $W$ that gives a concave function of $\mathbf{d}$, which requires $W$ to be convex or concave in $\mathbf{u}$ depending on the shape of utility functions. 
+
+Here, we highlight one class of concave fairness measures from literature. $\alpha$-fairness is a widely studied fairness measure in optimization and mechanism design that balances fairness and efficiency. When \( \alpha = 0 \), the metric characterizes pure efficiency, as it seeks to maximize the total utility without consideration for fairness. The function assigns greater emphasis on fairness as $\alpha$ increases. At the other extreme when \( \alpha \) approaches infinity, $\alpha$-fairness reduces to the Rawlsian maximin fairness criterion, which prioritizes the worst-off utility to be maximized.
+\begin{equation} \label{eq:alphafairness}
+    W_{\alpha}(\mathbf{u}) = 
+\begin{cases}
+    \frac{1}{1 - \alpha} \sum_{i=1}^{n} u_i^{1 - \alpha}, & \text{if } \alpha \geq 0 \text{ and } \alpha \neq 1; \\
+    \sum_{i=1}^{n} \log(u_i), & \text{if } \alpha = 1.
+\end{cases}
+\end{equation}
+
+The general compatibility with E2EFO does not mean all fairness measures are practical. As we will discuss further in Section \ref{sec:alg}, different fairness objectives lead to decision-making models of varying complexity, thus affecting the difficulty of designing FDFL algorithms. In a fairness measure that serves as the decision objective, all unknown parameters are included in $\mathbf{r}$. There may be multiple groups of unknown parameters. For instance, when specifying utility functions of resource allocation decisions, it is possible we do not know stakeholders' exact need levels and utility gain rates, but have access to stakeholder features that can be used to estimate these values. 
+
+\subsection{An Illustrative Example} \label{sec:example}
+We use a simple example to illustrate the prediction and decision performance differences between two-stage versus end-to-end methods. Suppose $50$ units of resources need to be distributed among $15$ people belonging to two groups. Group 1, as the majority group, consists of $10$ people. Group 2, as the minority group, has $5$ people. Each person is characterized by a single feature $x_i \in [0,1]$, a need level $q_i$ and a utility gain rate $g_i \in [0,1]$ for the resource. We generate the data so that Group 2 is the disadvantaged group. To give a concrete context, we can consider the resource as budget to take physical exams, $\{x_i\}$ as people's age, $\{q_i\}$ as overall health risks (older people tend to have higher risks). Due to historical bias, current data tend to under-report the risks of group 2 at higher age and over-report at younger age.
+
+From receiving resource $d_i$, person $i$'s utility is defined as $u_i = q_i g_i d_i$. The decision maker aims to allocate all resources to maximize a $\alpha$-fairness objective with $\alpha=2$ to reflect a strong emphasis on fairness over efficiency subject to the resource capacity constraint. Namely, the decision optimization model can be stated as: $\max_{\mathbf{d}} ~ \frac{1}{1 - 2} \sum_{i=1}^{n} u_i^{1 - 2} ~ \text{s.t. } u_i = q_i g_i d_i ~ \forall i, \sum_{i=1}^n d_i \leq Q, \mathbf{d} \geq 0$. At the time of decision, the need levels $\{q_i\}$ is unknown, but can be estimated using the feature $\{x_i\}$. This means $\mathbf{r} \coloneqq \mathbf{q}$ in the example. For the prediction task to generate $\hat{\mathbf{r}}$, we consider a linear regression model for prediction, and quantify accuracy disparity, i.e., the difference between two groups' mean square error (MSE) of $\mathbf{r}, \hat{\mathbf{r}}$, as the prediction unfairness to reduce. 
+
+\begin{wraptable}{r}{0.45\textwidth} 
+\centering
+    \vspace{-1pc}
+    \begin{tabular}{|c|c|c|c|c|}
+            \hline
+             & M1 & M2 & M3 & M4 \\ \hline
+        $MSE(\mathbf{r},\hat{\mathbf{r}})$ & \textbf{1.283} & 1.680 & 70.274 & 2.710 \\ \hline
+        $MSE(\mathbf{d}^*(\mathbf{r}), \mathbf{d}^*(\hat{\mathbf{r}}))$ & 0.314 & 0.201 & \textbf{0.186} & 0.188 \\ \hline
+        \end{tabular}
+    \caption{Results from Four Linear Regression Fitting Models}
+    \label{example:table}
+         \vspace{-2pc}
+\end{wraptable}
+
+On this example, we compare four models for fitting the linear regression line. Two of the models adopt a two-stage approach to focus on prediction accuracy in regression: the first one (M1) runs a standard linear regression to minimize the MSE between $\mathbf{r}, \hat{\mathbf{r}}$, and the second one (M2) accounts for prediction fairness by adding accuracy disparity as a regularization term to prediction error. The other two models follow an end-to-end view to emphasize decision accuracy: the third model (M3) fits a regression line to minimize the MSE between $\mathbf{d}^*(\mathbf{r}), \mathbf{d}^*(\hat{\mathbf{r}})$ (i.e., $L_{error}$), and the last model (M4) adds the accuracy disparity regularization to the decision MSE. We note that the last model accounts for fairness in both decision and prediction. In Figure \ref{example:pred-fig}, the green and blue points display the features and the true need levels, and the lines show the regression results from all four models. As we expect, the standard linear regression model reaches the best prediction accuracy, and the end-to-end regression model without prediction fairness attains the highest decision accuracy (Table \ref{example:table}). We also highlight that accounting for both types of fairness in an end-to-end manner significantly benefits prediction performance while maintaining decision accuracy. In Figure \ref{example:dec-fig}, we observe additional decision differences between two-stage and end-to-end approaches. Both two-stage models carry over some discriminative bias in predictions to decisions, as the decision errors are higher for the disadvantaged group 2. Accounting for prediction fairness in M2 helps reducing the gap between groups, but is insufficient to fully remove the bias. In contrast, through optimizing decision fairness, both end-to-end models attain more accurate decisions for group 2 while getting closer to the true optimal fair decisions. 
+\vspace{-0.5pc}
+\begin{figure}[h]
+    \centering
+    % Figure 1
+    \begin{minipage}[t]{0.45\textwidth} % Adjust width as needed
+        \centering
+        \includegraphics[width=\textwidth]{Plots/pred-error.png} % Replace with actual file path
+        \caption{Data points and Linear Regression Results}
+        \label{example:pred-fig}
+    \end{minipage}
+    \hfill
+    % Figure 2
+    \begin{minipage}[t]{0.5\textwidth} % Adjust width as needed
+        \centering
+        \includegraphics[width=\textwidth]{Plots/dec-error.png} % Replace with actual file path
+        \caption{Errors in Decisions based on Different Regression Models}
+        \label{example:dec-fig}
+    \end{minipage}
+\end{figure}
+
+
+\section{Fair Decision Focused Learning Algorithms} \label{sec:FDFL-alg}
+We first specify the FDFL training formulation. The training model reflects the goal of optimizing prediction-based decision objectives while maintaining fairness. There are different approaches in the literature to achieve this, broadly categorized into gradient-based and gradient-free methods. Gradient-based methods follow a direct approach of minimizing regret loss through gradient descent, where regret is defined as the difference between the full-information optimal objective value and the objective value realized by the prediction-based decision:
+\begin{equation}
+     \min_{\theta}~L_{\text{regret}}= \bigl[W\bigr(\mathbf{d}^*(\mathbf{r}),\mathbf{r}) \bigr) - W\bigr(\mathbf{d}^*(\mathbf{\hat{r}}),\mathbf{r}) \bigr)\bigr]  + \lambda F(\cdot)
+\end{equation}
+where $F(\cdot)$ represents the fairness regularizer. Note that minimizing regret is equivalent to maximizing $W(\mathbf{d}^*(\hat{\mathbf{r}});\mathbf{r})$ since $W(\mathbf{d}^*(\mathbf{r});\mathbf{r})$ is constant with respect to the prediction model. While regret is the quintessential task loss, other options exist. For example, when ground-truth data includes optimal decisions $\mathbf{d}^*(\mathbf{r})$, we can directly minimize $\|\mathbf{d}^*(\hat{\mathbf{r}}) - \mathbf{d}^*(\mathbf{r})\|^2$. 
+
+Alternative approaches that avoid gradient computation have also been developed, including surrogate loss functions, landscape learning, and ranking-based methods. In this work, we focus on gradient-based methods and we provide a detailed discussion of the alternative approaches in Appendix \ref{app:dfl-methods}. 
+
+\subsection{Gradient-Based Methods}
+The key computational challenge lies in computing gradients through the optimization procedure. Using the chain rule:
+\begin{equation}\label{eq:grad_chain}
+    \frac{\partial{L_{Regret}(\hat{\mathbf{r}},\cdot)}}{\partial{\boldsymbol\theta}} = \frac{\partial{L_{Regret}(\hat{\mathbf{r}},\cdot)}}{\partial{\mathbf{d^*} (\hat{\mathbf{r}})}} \cdot \frac{\partial{\mathbf{d^*}(\mathbf{\hat{r}})}}{\partial{\hat{\mathbf{r}}}} \cdot \frac{\partial{\hat{\mathbf{r}}}}{\partial{\boldsymbol{\theta}}}
+\end{equation}
+The first term is the gradient of the regret loss with respect to the decision variables. The third term is the gradient of the predictions with respect to the model parameters, which can be handled by modern deep learning frameworks. The challenge lies in computing the middle term, which involves differentiating the optimal solution of the optimization problem. The core computational challenge in Algorithm~\ref{alg:dfl} is differentiating through the solver, i.e., computing \(\partial \,\mathbf{d}^*(\hat{\mathbf{r}})/ \partial\,\hat{\mathbf{r}}\). This term often vanishes or is undefined if \(\mathbf{d}^*(\cdot)\) is piecewise constant (typical for linear or discrete problems). We address this using a finite difference approximation inspired by the Differentiable Black-box Optimizer (DBB) approach \cite{poganvcic2020differentiation}. Given the current predicted parameters $\hat{\mathbf{r}}$, we introduce a perturbation:
+\begin{equation} \label{eq:perturb}
+    \mathbf{r}' = \hat{\mathbf{r}} + \lambda \frac{\partial l(\hat{\mathbf{r}},\cdot)}{\partial \mathbf{d}^*(\hat{\mathbf{r}})}
+\end{equation}
+and approximate the gradient as:
+\begin{equation} \label{eq:grad-approx}
+    \frac{\partial \mathbf{d}^*(\hat{\mathbf{r}})}{\partial \hat{\mathbf{r}}} \approx \frac{1}{\lambda}(\mathbf{d}^*(\mathbf{r}') - \mathbf{d}^*(\hat{\mathbf{r}}))
+\end{equation}
+where $\lambda > 0$ is a perturbation parameter that controls the approximation accuracy. This approach provides non-zero gradients that can guide optimization while requiring only two solver calls per gradient computation.
+
+For certain special cases, we can avoid such approximations by deriving closed-form expressions for $\frac{\partial \mathbf{d}^*(\hat{\mathbf{r}})}{\partial \hat{\mathbf{r}}}$. We discuss this in Section \ref{algsec:closed} for a specific class of $\alpha$-fairness problems. Researchers have proposed numerous \emph{surrogate} or \emph{perturbation-based} methods for approximating these gradients as discussed in section \ref{sec:literature}. For completeness, we note that other gradient computation techniques exist in the DFL literature, including surrogate losses \cite{spo2020, mulamba2020contrastive} , and gradient-free methods \cite{zharmagambetov2023landscape}, which we summarize in Appendix \ref{app:dfl-methods}.
+
+
+\begin{algorithm}[H]
+\caption{Fair Decision-Focused Learning with Gradient Descent}
+\label{alg:dfl}
+\small  % Reduce font size
+\setlength{\abovedisplayskip}{3pt}  % Reduce spacing
+\setlength{\belowdisplayskip}{3pt}
+\begin{algorithmic}[1]
+\Require Training set $\{(\mathbf{x}, \mathbf{r})\}$; objective $W(\mathbf{d};\hat{\mathbf{r}})$; fairness regularizer $F(\theta)$; learning rate $\eta$
+\State Initialize predictor parameters $\theta$
+\For{each training epoch}
+    \State $\hat{\mathbf{r}} \gets f_\theta(x_i)$ \Comment{Predict parameters}
+    \State $\mathbf{d}^*(\hat{\mathbf{r}}) \gets \arg\max_{\mathbf{d}\in\mathcal{S}}\,W(\mathbf{d};\hat{\mathbf{r}})$ \Comment{Solve decision}
+    \State $\mathcal{L}(\theta) \gets -W(\mathbf{d}^*(\hat{\mathbf{r}});\mathbf{r}) + \lambda F(\theta)$ \Comment{Evaluate loss}
+    \State Compute $\nabla_{\theta}\mathcal{L}$ and update $\theta \gets \theta - \eta\nabla_{\theta}\mathcal{L}$
+\EndFor
+\State \Return $\theta$
+\end{algorithmic}
+\end{algorithm}
+
+\subsubsection{ Closed-Form Solutions and Analytical Gradients for Alpha Fairness} \label{algsec:closed}
+We consider the alpha-fairness optimization problem \ref{eq:alphafairness} in which each decision variable $d_i$ contributes a linear utility $u_i = r_i g_i d_i$. The goal is to allocate a total budget $Q$ among the $n$ decision variables $\{d_i\}_{i=1}^n$ to maximize the alpha-fairness measure of these linear utilities. Formally, the problem can be stated as 
+\begin{equation}\label{eq:alphafair_w_constr}
+    \max_{d} ~ \sum_{i=1}^n W_{\alpha} (r_i g_id_i) \quad \text{subject to} \quad \sum_{i=1}^n c_id_i \leq Q \quad\text{and}\quad d_i \geq 0
+\end{equation}
+Throughout, we assume $\alpha > 0$ and $r_i, g_i, Q >0$. Under these mild regularity conditions, one can show via Lagrangian duality and optimal conditions that this problem admits a closed-form solution $d_i^*$. The next proposition states the solution explicitly for the case $\alpha \neq 1$; a similar expression holds for $\alpha=1$ with the logarithmic objective.  The closed-form solution in Proposition~\ref{prop:closed_form_solution} and its analytical gradient (Proposition~\ref{prop:analytical_gradient}) enables exact and fast gradient computation in equation \eqref{eq:grad_chain}. 
+\begin{proposition}[Closed-Form Solution for Alpha-Fairness Problem]
+\label{prop:closed_form_solution}
+For the alpha-fairness maximization problem with linear utility $u_i = r_i g_i d_i$, the optimal solution $d_i^*$ is given by:
+\[
+d_i^* = \frac{c_i^{-\frac{1}{\alpha}} \cdot (r_i g_i)^{\frac{1}{\alpha} - 1} \cdot Q}{\sum_{j=1}^n c_j^{-\frac{1}{\alpha}} \cdot (r_j g_j)^{\frac{1}{\alpha} - 1}}
+\]
+\end{proposition}
+The closed-form solution enables direct computation of gradients required in the training process. Specifically, we can derive the analytical expression for how the optimal decisions change with respect to changes in the unknown parameters.
+
+\begin{proposition}[Analytical Gradient of the Alpha-Fairness Problem]
+\label{prop:analytical_gradient}
+The partial derivative of the optimal decision $d_i^*$ with respect to the parameter $r_k$ is:
+\[
+\frac{\partial d_i^*}{\partial r_i} = \frac{Q \left( \left( -1 + \frac{1}{\alpha} \right)c_i^{-\frac{1}{\alpha}} \cdot g_i^{\frac{1}{\alpha}-1} \cdot r_i^{-2 + \frac{1}{\alpha}} \left( S - c_i^{1-\frac{1}{\alpha}}\cdot (r_i g_i)^{-1+\frac{1}{\alpha}}\right) \right)}{S^2}
+\]
+where $S = \sum_{j=1}^n c_j^{1 - \frac{1}{\alpha}} \cdot (r_j g_j)^{-1 + \frac{1}{\alpha}}$.
+\end{proposition}
+
+[ADD PROOF in appendix]
+
+\section{Experiments} \label{sec:exp}
+\subsection{Problem Setting}
+We evaluate our framework on a healthcare resource allocation problem using a synthetic dataset generated from real-world medical risk prediction data studied in \cite{doi:10.1126/science.aax2342}.  The dataset contains 48,784 patient records with demographic information, comorbidity indicators, historical healthcare costs, biomarkers, and program enrollment decisions. The original study revealed significant racial bias in commercial risk prediction algorithms: at equivalent risk scores, Black patients were sicker than White patients but less likely to be identified for program enrollment.
+
+In the current system, enrollment decisions follow a two-stage process: first, a commercial algorithm generates risk scores from medical data. Patients scoring above the 97th percentile are automatically enrolled, while those above the 55th percentile are referred to their primary care physician for enrollment consideration based on the risk score and additional contextual information.
+\begin{equation*}\label{eq:alphafair_w_constr}
+    \max_{d} ~ \sum_{i=1}^n W_{\alpha} (r_i g_id_i) \quad \text{subject to} \quad \sum_{i=1}^n c_id_i \leq Q \quad\text{and}\quad d_i \geq 0
+\end{equation*}
+We model their utility from program enrollment as: $u_i(d_i) = r_i g_i d_i$, where $r_i$ is the patient's risk score, $g_i$ is an unobserved gain factor representing how much the patient would benefit from enrollment, and $d_i$ is the enrollment decision. The gain factor $g_i$ is estimated using avoidable costs (mapped via nearest neighbor matching for patients lacking this data) and a logistic regression model trained on patient features to generate a propensity score that serves as a continuous proxy for the binary enrollment decision threshold (patients above the 55th percentile of risk scores). The decision optimization maximizes alpha-fair optimization problem \ref{eq:alphafair_w_constr} with non-negativity and knapsack constraints.
+
+where $c_i$ represents the cost of enrolling patient $i$ and $Q$ is the total resource budget. While this simplified formulation cannot capture all the complexities of real-world medical decision-making, it serves to demonstrate the advantages of FDFL over traditional two-stage approaches in balancing accuracy and fairness.
+
+\subsection{Methods and Implementation}
+
+We compare two main approaches: traditional two-stage methods and our FDFL framework. For two-stage methods, we start with a basic predict-then-optimize approach and create variants by adding fairness components: fairness in prediction, fairness in optimization, and fairness in both stages. Similarly, we implement FDFL without fairness considerations and enhance both types of fairness. We evaluated our methods with a random sample  $n=5000$. The decision task is to allocate limited resources with $Q=1000$ and cost $c \sim \mathcal{N}(1,\,0.5)$.
+
+We implement and compare six approaches:
+\begin{itemize}
+    \item \textbf{Two-Stage Methods:}
+        \begin{itemize}
+            \item Two-stage approach without fairness considerations
+            \item Two-stage with accuracy disparity in prediction ($\lambda=1$)
+        \end{itemize}
+    \item \textbf{FDFL Methods:}
+        \begin{itemize}
+            \item Basic FDFL without fairness regularization
+            \item FDFL with fairness using closed-form gradients
+            \item FDFL with fairness using DBB gradients
+        \end{itemize}
+\end{itemize}
+
+All methods use a neural network predictor with two hidden layers (64 units each).  The implementations use PyTorch \cite{paszke2019pytorch} for neural networks and MOSEK \cite{mosek} solver for optimization problems, with hyperparameters tuned via grid search. We conduct 10 independent trials with 50/50 train-test splits and report means and standard deviations across trials.
+
+\subsection{Results}
+
+Table \ref{tab:results2} compares performance of two-stage and FDFL approaches under alpha-fairness objectiv with $\alpha=2$, which emphasizes equity in resource allocation. All methods are evaluated with and without fairness regularization across prediction accuracy (MSE), decision quality (normalized regret), and fairness (accuracy disparity between racial groups).
+
+The results highlight a trade-off between prediction accuracy and decision quality. While two-stage methods excel in MSE, achieving better prediction accuracy than FDFL, this does not translate to superior decision outcomes. FDFL, particularly the closed-form gradient approach, demonstrates significantly lower regret, reflecting its ability to produce utility distributions that better balance equity and efficiency. This is crucial for high alpha-fairness settings, where improving outcomes for disadvantaged groups is prioritized.
+ 
+Fairness penalties further underscore the differences between the two approaches. In two-stage methods, adding fairness penalties improves fairness metrics but at the expense of prediction accuracy, as reflected by higher MSE. Conversely, FDFL approaches, especially the closed-form variant, show greater resilience. They maintain strong decision performance while achieving moderate fairness improvements, benefiting from their end-to-end structure that effectively manages the interplay between prediction and decision fairness.
+
+From a computational perspective, the closed-form FDFL approach demonstrates remarkable efficiency, achieving significant time savings by leveraging analytical solutions. This approach circumvents the high computational burden associated with differentiating the solver, which typically consumes 566.88–786.68 seconds per epoch. Although the perturbation-based method is slower, it offers greater flexibility for various fairness measures, ensuring broader applicability.
+
+Table \ref{tab:results0.5} and Table \ref{tab:results2} provide detailed quantitative comparisons across methods for $\alpha=0.5$ and $\alpha=2$, respectively. 
+
+
+\begin{table}
+\caption{Performance Comparison Across Methods For $\alpha=0.5$}
+\label{tab:results0.5}
+\begin{tabular}{lcccccc}
+\toprule
+Method & $\lambda$ & MSE (Mean ± Std) & Regret (Mean ± Std) & Fairness (Mean ± Std) & Time/Epoch \\
+\midrule
+2-Stage & 0 & 15.60 ± 2.65 & 0.08 ± 0.02 & 10.493 ± 6.137 & 0.36 \\
+2-Stage & 1 & 20.34 ± 2.32 & 0.08 ± 0.03 & 2.435 ± 3.979 & 0.34 \\
+FDFL (Closed-Form) & 0 & 33.97 ± 4.15 & 0.09 ± 0.02 & 25.715 ± 12.674 & 1.35 \\
+FDFL (Closed-Form) & 1 & 33.94 ± 4.11 & 0.09 ± 0.02 & 25.627 ± 12.556 & 1.36 \\
+FDFL (DBB) & 0 & 50.79 ± 3.85 & 14.29 ± 10.98 & 40.282 ± 16.483 & 28.86 \\
+FDFL (DBB) & 1 & 50.58 ± 3.60 & 17.71 ± 11.02 & 40.305 ± 16.556 & 28.35 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% solver time = 566.88s per epoch  / closed form time = 0.046s
+
+\begin{table}
+\caption{Performance Comparison Across Methods For $\alpha=2$}
+\label{tab:results2}
+\begin{tabular}{lcccccc}
+\toprule
+Method & $\lambda$ & MSE (Mean ± Std) & Regret (Mean ± Std) & Fairness (Mean ± Std) & Time/Epoch \\
+\midrule
+2-Stage & 0 & 15.53 ± 1.86 & 10.59 ± 0.55 & 11.106 ± 6.060 & 0.33 \\
+2-Stage & 1 & 19.30 ± 2.72 & 10.71 ± 0.80 & 1.205 ± 1.087 & 0.31 \\
+FDFL (Closed-Form) & 0 & 26.26 ± 1.42 & 1.23 ± 0.45 & 17.040 ± 7.380 & 1.32 \\
+FDFL (Closed-Form) & 1 & 25.81 ± 1.70 & 1.21 ± 0.43 & 16.238 ± 6.881 & 1.29 \\
+FDFL (DBB) & 0 & 43.67 ± 3.69 & 5.61 ± 0.50 & 31.589 ± 15.180 & 21.49 \\
+FDFL (DBB) & 1 & 44.26 ± 4.20 & 5.54 ± 0.87 & 32.181 ± 15.147 & 21.45 \\
+\bottomrule
+\end{tabular}
+\end{table}
+% solver time = 786.68s per epoch  / closed form time = 0.073s
+
+\begin{table}
+\caption{Performance Comparison Across Methods For $\alpha=1$}
+\label{tab:results}
+\begin{tabular}{lcccccc}
+\toprule
+Method & $\lambda$ & MSE (Mean ± Std) & Regret (Mean ± Std) & Fairness (Mean ± Std) & Time/Epoch \\
+\midrule
+2-Stage & 0 & 23.75 ± 2.72 & 0.00 ± 0.00 & 12.882 ± 8.781 & 0.26 \\
+2-Stage & 1 & 26.83 ± 3.14 & 0.00 ± 0.00 & 8.413 ± 7.656 & 0.25 \\
+FDFL (Closed-Form) & 0 & 45.70 ± 3.68 & 0.00 ± 0.00 & 39.112 ± 16.176 & 1.36 \\
+FDFL (Closed-Form) & 1 & 45.70 ± 3.68 & 0.00 ± 0.00 & 39.114 ± 16.165 & 1.35 \\
+FDFL (DBB) & 0 & 48.18 ± 3.48 & 0.00 ± 0.00 & 37.500 ± 16.847 & 10.36 \\
+FDFL (DBB) & 1 & 48.81 ± 3.80 & 0.00 ± 0.00 & 38.261 ± 16.242 & 11.27 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
