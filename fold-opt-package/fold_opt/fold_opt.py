@@ -95,7 +95,7 @@ class FixedPtDiffJacobianx(torch.autograd.Function):
 
 def jacobian_x_c(c, x_star_step, x_star):
 
-    N = x_star.shape[1]
+    N = x_star.shape[1] if len(x_star.shape) > 1 else 1
     B = x_star.shape[0]
 
     I = torch.eye(N)
@@ -112,7 +112,7 @@ def jacobian_x_c(c, x_star_step, x_star):
 
 def jacobian_x(c, x_star_step, x_star):
 
-    N = x_star.shape[1]
+    N = x_star.shape[1] if len(x_star.shape) > 1 else 1
     B = x_star.shape[0]
 
     I = torch.eye(N)
@@ -127,7 +127,7 @@ def jacobian_x(c, x_star_step, x_star):
 
 def JgP_LFPI(c, x_star_step, x_star_blank, g, n_steps = 1000, solver=None):
 
-    N = x_star_blank.shape[1]
+    N = x_star_blank.shape[1] if len(x_star_blank.shape) > 1 else 1
     B = x_star_blank.shape[0]
 
     v = torch.autograd.grad(x_star_step, x_star_blank, g, retain_graph=True)[0].detach()
@@ -146,7 +146,7 @@ def JgP_LFPI(c, x_star_step, x_star_blank, g, n_steps = 1000, solver=None):
 
 def JgP_GMRES(c, x_star_step, x_star, g, n_steps = 1000, tol = 1e-8):
 
-    N = x_star.shape[1]
+    N = x_star.shape[1] if len(x_star.shape) > 1 else 1
     B = x_star.shape[0]
     M = n_steps
     M = max(M,3)
@@ -196,7 +196,7 @@ def JgP_GMRES(c, x_star_step, x_star, g, n_steps = 1000, tol = 1e-8):
 
 def Jacobian_GMRES(c, x_star_step, x_star, g, n_steps = 1000, solver=None):
 
-    N = x_star.shape[1]
+    N = x_star.shape[1] if len(x_star.shape) > 1 else 1
     B = x_star.shape[0]
 
 
@@ -266,7 +266,7 @@ def BlankFunctionWrapper(f):
 
         @staticmethod
         def forward(ctx, c):
-            N = c.shape[1]
+            N = c.shape[1] if len(c.shape) > 1 else 1
             ctx.save_for_backward(torch.tensor(N))
             with torch.no_grad():
                 x = f(c)

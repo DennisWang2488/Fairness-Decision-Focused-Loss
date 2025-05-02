@@ -1,0 +1,64 @@
+\begin{table}
+\caption{The following notation is used in the table. $[\mathbf{x}]_+$ is the non-negative part of $\mathbf{x}$, $\mathcal{T}_\lambda(\mathbf{y}) = ([|y_i| - \lambda]_+\text{sgn}(y_i))_{i=1}^n$, and $\mathcal{S}_{\mathbf{a},\mathbf{b}}(\mathbf{x}) = (\min\{\max\{[x_i - a_i, 0\}, b_i\}\text{sgn}(x_i))_{i=1}^n$.}
+\label{tab:projections}
+\begin{tabular}{|c|c|c|c|}
+\hline
+set $(C)$ & $P_C(\mathbf{x})$ & Assumptions & Reference \\
+\hline
+$\mathbb{R}_+^n$ & $[\mathbf{x}]_+$ & $-$ & Lemma 6.26 \\
+\hline
+$\text{Box}[\boldsymbol{\ell}, \mathbf{u}]$ & $P_C(\mathbf{x})_i = \min\{\max\{x_i, \ell_i\}, u_i\}$ & $\ell_i \leq u_i$ & Lemma 6.26 \\
+\hline
+$B_{\|\cdot\|_2}[\mathbf{c}, r]$ & $\mathbf{c} + \frac{r}{\max\{\|\mathbf{x} - \mathbf{c}\|_2, r\}}(\mathbf{x} - \mathbf{c})$ & $\mathbf{c} \in \mathbb{R}^n, r > 0$ & Lemma 6.26 \\
+\hline
+$\{\mathbf{x} : \mathbf{A}\mathbf{x} = \mathbf{b}\}$ & $\mathbf{x} - \mathbf{A}^T(\mathbf{A}\mathbf{A}^T)^{-1}(\mathbf{A}\mathbf{x} - \mathbf{b})$ & 
+$\mathbf{A} \in \mathbb{R}^{m \times n}$, $\mathbf{b} \in \mathbb{R}^m$, $\mathbf{A}$ full row rank & Lemma 6.26 \\
+\hline
+$\{\mathbf{x} : \mathbf{a}^T\mathbf{x} \leq b\}$ & $\mathbf{x} - \frac{[\mathbf{a}^T\mathbf{x} - b]_+}{\|\mathbf{a}\|^2}\mathbf{a}$ & $\mathbf{0} \neq \mathbf{a} \in \mathbb{R}^n, b \in \mathbb{R}$ & Lemma 6.26 \\
+\hline
+$\Delta_n$ & $[\mathbf{x} - \mu^*\mathbf{e}]_+$ where $\mu^* \in \mathbb{R}$ satisfies $\mathbf{e}^T[\mathbf{x} - \mu^*\mathbf{e}]_+ = 1$ & & Corollary 6.29 \\
+\hline
+$H_{\mathbf{a},b} \cap \text{Box}[\boldsymbol{\ell}, \mathbf{u}]$ & $P_{\text{Box}[\boldsymbol{\ell}, \mathbf{u}]}(\mathbf{x} - \mu^*\mathbf{a})$ where $\mu^* \in \mathbb{R}$ satisfies $\mathbf{a}^T P_{\text{Box}[\boldsymbol{\ell}, \mathbf{u}]}(\mathbf{x} - \mu^*\mathbf{a}) = b$ & $\mathbf{a} \in \mathbb{R}^n \setminus \{\mathbf{0}\}$, $b \in \mathbb{R}$ & Theorem 6.27 \\
+\hline
+$H_{\mathbf{a},b}^+ \cap \text{Box}[\boldsymbol{\ell}, \mathbf{u}]$ & 
+$\begin{cases}
+P_{\text{Box}[\boldsymbol{\ell}, \mathbf{u}]}(\mathbf{x}), & \mathbf{a}^T\mathbf{v}_\mathbf{x} \leq b, \\
+P_{\text{Box}[\boldsymbol{\ell}, \mathbf{u}]}(\mathbf{x} - \lambda^*\mathbf{a}), & \mathbf{a}^T\mathbf{v}_\mathbf{x} > b,
+\end{cases}$ & $\mathbf{a} \in \mathbb{R}^n \setminus \{\mathbf{0}\}$, $b \in \mathbb{R}$ & Example 6.32 \\
+& $\mathbf{v}_\mathbf{x} = P_{\text{Box}[\boldsymbol{\ell}, \mathbf{u}]}(\mathbf{x})$, $\mathbf{a}^T P_{\text{Box}[\boldsymbol{\ell}, \mathbf{u}]}(\mathbf{x} - \lambda^*\mathbf{a}) = b, \lambda^* > 0$ & & \\
+\hline
+$B_{\|\cdot\|_1}[\mathbf{0}, \alpha]$ & 
+$\begin{cases}
+\mathbf{x}, & \|\mathbf{x}\|_1 \leq \alpha, \\
+\mathcal{T}_{\lambda^*}(\mathbf{x}), & \|\mathbf{x}\|_1 > \alpha,
+\end{cases}$ & $\alpha > 0$ & Example 6.33 \\
+& $\|\mathcal{T}_{\lambda^*}(\mathbf{x})\|_1 = \alpha, \lambda^* > 0$ & & \\
+\hline
+$\{\mathbf{x} : \boldsymbol{\omega}^T|\mathbf{x}| \leq \beta,$ & 
+$\begin{cases}
+\mathbf{v}_\mathbf{x}, & \boldsymbol{\omega}^T|\mathbf{v}_\mathbf{x}| \leq \beta, \\
+\mathcal{S}_{\lambda^*\boldsymbol{\omega},\boldsymbol{\alpha}}(\mathbf{x}), & \boldsymbol{\omega}^T|\mathbf{v}_\mathbf{x}| > \beta,
+\end{cases}$ & $\boldsymbol{\omega} \in \mathbb{R}_{++}^n, \boldsymbol{\alpha} \in [0,\infty)^n, \beta \in \mathbb{R}_{++}$ & Example 6.34 \\
+$-\boldsymbol{\alpha} \leq \mathbf{x} \leq \boldsymbol{\alpha}\}$ & $\mathbf{v}_\mathbf{x} = P_{\text{Box}[-\boldsymbol{\alpha},\boldsymbol{\alpha}]}(\mathbf{x})$, $\boldsymbol{\omega}^T|\mathcal{S}_{\lambda^*\boldsymbol{\omega},\boldsymbol{\alpha}}(\mathbf{x})| = \beta, \lambda^* > 0$ & & \\
+\hline
+$\{\mathbf{x} > \mathbf{0} : \Pi x_i \geq \alpha\}$ & 
+$\begin{cases}
+\mathbf{x}, & \mathbf{x} \in C, \\
+\left(\frac{x_j + \sqrt{x_j^2 + 4\lambda^*}}{2}\right)^n_{j=1}, & \mathbf{x} \notin C,
+\end{cases}$ & $\alpha > 0$ & Example 6.35 \\
+& $\prod_{j=1}^n\left(\frac{(x_j + \sqrt{x_j^2 + 4\lambda^*})}{2}\right) = \alpha, \lambda^* > 0$ & & \\
+\hline
+$\{(\mathbf{x}, s) : \|\mathbf{x}\|_2 \leq s\}$ & 
+$\begin{pmatrix} \frac{\|\mathbf{x}\|_2 + s}{2\|\mathbf{x}\|_2}\mathbf{x}, \frac{\|\mathbf{x}\|_2 + s}{2} \end{pmatrix}$ if $\|\mathbf{x}\|_2 \geq |s|$ & & Example 6.37 \\
+& $(0,0)$ if $s < -\|\mathbf{x}\|_2$, & & \\
+& $(\mathbf{x}, s)$ if $\|\mathbf{x}\|_2 \leq s$, & & \\
+\hline
+$\{(\mathbf{x}, s) : \|\mathbf{x}\|_1 \leq s\}$ & 
+$\begin{cases}
+(\mathbf{x}, s), & \|\mathbf{x}\|_1 \leq s, \\
+(\mathcal{T}_{\lambda^*}(\mathbf{x}), s + \lambda^*), & \|\mathbf{x}\|_1 > s,
+\end{cases}$ & & Example 6.38 \\
+& $\|\mathcal{T}_{\lambda^*}(\mathbf{x})\|_1 - \lambda^* - s = 0, \lambda^* > 0$ & & \\
+\hline
+\end{tabular}
+\end{table}

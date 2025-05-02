@@ -200,8 +200,14 @@ def compute_gradient_closed_form(g, r, c, alpha, Q):
     Returns:
     - gradient (np.ndarray): Gradient matrix of shape (n, n)
     """
+    r = r.detach().cpu().numpy() if isinstance(r, torch.Tensor) else r
+    g = g.detach().cpu().numpy() if isinstance(g, torch.Tensor) else g
+    c = c.detach().cpu().numpy() if isinstance(c, torch.Tensor) else c
+        
     if alpha == 1:
         S = np.sum(c / (r * g))
+
+    
 
     if alpha == 0:
         # Utilitarian case: Allocate everything to the individual with the highest ratio
