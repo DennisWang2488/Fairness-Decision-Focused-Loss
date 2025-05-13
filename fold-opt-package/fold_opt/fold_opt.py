@@ -155,8 +155,6 @@ def JgP_GMRES(c, x_star_step, x_star, g, n_steps = 1000, tol = 1e-8):
     x0 = torch.autograd.grad(x_star_step, x_star, g, retain_graph=True)[0].detach()
     b  = g
 
-
-
     H = torch.zeros(M + 1, M).repeat(B,1,1)
     Q = torch.zeros(M,N).repeat(B,1,1)
     O = torch.eye(M).repeat(B,1,1)
@@ -165,6 +163,8 @@ def JgP_GMRES(c, x_star_step, x_star, g, n_steps = 1000, tol = 1e-8):
     r =  b - jgp
     #r =  b - v_matrix_mult(A, x0)
     I2, I2skew, r, beta, Q, e = GMRES.v_setup(r, b, x0, H, Q, O, M)
+    # ─────────────── Ensure Q lives on the same device/dtype as inputs ────────────
+    Q = Q.to(c.device).to(c.dtype)
 
     for k in range(M-1):
         #y = v_matrix_mult(A, Q[k])
@@ -181,8 +181,6 @@ def JgP_GMRES(c, x_star_step, x_star, g, n_steps = 1000, tol = 1e-8):
             # Create the RHS of the least squares problem
             # Least squares is equivalent to this back-substitution
             z = GMRES.v_solve_x(Q,O,R,x0,e,beta,k)
-
-
 
     gradient = torch.autograd.grad(x_star_step, c, z, retain_graph=True)[0].detach()
 
