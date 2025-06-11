@@ -1,111 +1,113 @@
-
+import math
 import sys
-sys.path.insert(0, 'E:\\User\\Stevens\\Code\\Fold-opt\\fold_opt')
-from GMRES import *
-from fold_opt import *
-import torch
 import numpy as np
 import cvxpy as cp
-import math
+import torch
+from torch import nn
+
+# Add necessary paths to sys.path
+sys.path.insert(0, 'E:\\User\\Stevens\\Code\\Fold-opt\\fold_opt')
+sys.path.insert(0, 'E:\\User\\Stevens\\MyRepo\\FDFL\\helper')
+
+# Import custom modules
+from GMRES import *
+from fold_opt import *
+from myutil import *
 
 
-def proj_knapsack_closed(v, c, Q, max_iter: int = 25):
+# ---------------- little utilities ---------------------------------
+def to_col(x):              # (…,n)  ->  (…,n,1)
+    return x.unsqueeze(-1) if x.dim() == 1 else x
+def from_col(x):            # (…,n,1) -> (…,n)
+    return x.squeeze(-1)
+
+def from_numpy_torch(x):  # (n,) -> (1,n) -> (1,n,1)
+    return torch.from_numpy(x).float().unsqueeze(0).unsqueeze(-1)
+def to_torch_numpy(x):    # (1,n,1) -> (1,n) -> (n,)
+    return x.squeeze(0).squeeze(-1).numpy()
+
+
+def proj_budget(x, cost, Q, max_iter=60):
     """
-    Water-filling projection (Duchi et al., 2008) – vectorised & differentiable
-    v : (B,n)   raw iterate
-    c : (n,)    positive costs   (Torch tensor)
-    Q : float   budget
+    x : (B,n)   or (n,)   –– internally promoted to (B,n)
+    cost : (n,) positive
+    Q : scalar or length‑B tensor
     """
-    B, n = v.shape
-    c = c.to(v)
+    batched = x.dim() == 2
+    if not batched:                       # (n,)  →  (1,n)
+        x = x.unsqueeze(0)
 
-    # 1) clip to orthant
-    y     = v.clamp_min_(0.)
-    cost  = (y * c).sum(1)
-    mask  = cost > Q
-    if not mask.any():
-        return y
+    B, n = x.shape
+    cost = cost.to(x)
+    Q    = torch.as_tensor(Q, dtype=x.dtype, device=x.device).reshape(-1, 1)  # (B,1)
 
-    # 2) batched bisection for λ s.t. Σ_i max(0, y_i − λ c_i)c_i = Q
-    lam_lo = torch.zeros_like(cost)
-    lam_hi = (y / c).max(1).values          # tight upper bound
-    for _ in range(max_iter):
-        lam   = 0.5 * (lam_lo + lam_hi)
-        d_tmp = (y - lam.unsqueeze(1)*c).clamp_min_(0.)
-        excess = (d_tmp*c).sum(1) - Q
-        lam_lo = torch.where(excess > 0, lam, lam_lo)
-        lam_hi = torch.where(excess <= 0, lam, lam_hi)
+    d    = x.clamp(min=0.)                # enforce non‑neg
+    viol = (d @ cost) > Q.squeeze(1)      # which rows violate the budget?
 
-    lam  = lam_hi.unsqueeze(1)
-    d_pf = (y - lam*c).clamp_min_(0.)
-    return torch.where(mask.unsqueeze(1), d_pf, y)
+    if viol.any():
+        dv, Qv = d[viol], Q[viol]
+        lam_lo = torch.zeros_like(Qv.squeeze(1))
+        lam_hi = (dv / cost).max(1).values   # upper bound for λ⋆
+
+        for _ in range(max_iter):
+            lam_mid = 0.5 * (lam_lo + lam_hi)
+            trial   = (dv - lam_mid[:, None] * cost).clamp(min=0.)
+            too_big = (trial @ cost) > Qv.squeeze(1)
+            lam_lo[too_big] = lam_mid[too_big]
+            lam_hi[~too_big]= lam_mid[~too_big]
+
+        d[viol] = (dv - lam_hi[:, None] * cost).clamp(min=0.)
+
+    return d if batched else d.squeeze(0)   # restore original rank
 
 
-def proj_knapsack_solver(v, c, Q):
+def alpha_fair_torch(u, alpha):
+    if alpha == 1:
+        return torch.log(u).sum(-1)
+    elif alpha == 0:
+        return u.sum(-1)
+    elif alpha == 'inf':
+        return u.min(-1).values
+    return (u.pow(1-alpha)/(1-alpha)).sum(-1)
+
+def pgd_step(r, d, g, cost, Q, alpha, lr):
+    d = d.clone().requires_grad_(True)
+    obj     = alpha_fair_torch(d * r * g, alpha).sum()
+    grad_d, = torch.autograd.grad(obj, d, create_graph=True)
+    return proj_budget(d + lr * grad_d, cost, Q)
+
+
+def closed_form_solver_torch(r, g, cost, alpha, Q):
+    if r.dim() == 1:                      # (n,) → (1,n) before looping
+        r = r.unsqueeze(0)
     out = []
-    c_np = c.cpu().numpy()
-    for row in v.cpu().numpy():
-        n   = row.size
-        d   = cp.Variable(n)
-        prob = cp.Problem(cp.Minimize(0.5*cp.sum_squares(d - row)),
-                          [d >= 0, c_np @ d <= Q])
-        prob.solve(solver=cp.OSQP, eps_abs=1e-8, verbose=False)
-        out.append(torch.tensor(d.value, dtype=v.dtype))
-    return torch.stack(out).to(v)
-
-class PGDStep(torch.nn.Module):
-    """
-    update_step(c, d)   where   c == r   (risk/parameter vector).
-    All constants are stored as buffers so autograd only tracks r.
-    """
-    def __init__(self, g, c_cost, Q: float, alpha: float,
-                 lr: float = 5e-2, closed_proj: bool = True):
-        super().__init__()
-        self.register_buffer("g",      g)        # shape (n,)
-        self.register_buffer("c_cost", c_cost)   # shape (n,)
-        self.Q      = float(Q)
-        self.alpha  = float(alpha)
-        self.lr     = float(lr)
-        self.closed = closed_proj
-
-    def forward(self, r, d):
-        """Projected-gradient step  d_{t+1} ← Π_Ω(d_t − lr ∇f)"""
-        util = r * self.g
-        if self.alpha == 1.0:
-            grad = -(util / d.clamp_min(1e-12))
-        else:
-            grad = - (util**(1 - self.alpha)) * torch.pow(
-                     d.clamp_min(1e-12), -self.alpha)
-
-        d_new = d - self.lr * grad
-        proj  = proj_knapsack_closed if self.closed else proj_knapsack_solver
-        return proj(d_new, self.c_cost, self.Q)
+    for r_i in r:
+        d_np, _ = solve_closed_form(g.cpu().numpy(),
+                                    r_i.detach().cpu().numpy(),
+                                    cost.cpu().numpy(),
+                                    alpha, Q)
+        out.append(torch.as_tensor(d_np, dtype=r.dtype, device=r.device))
+    return torch.stack(out)               # (B,n) even if B=1
 
 
-# ----------------------------------------------------------
-def my_solver(c):
-    return torch.clamp(c, min=0.0)
+def make_foldopt_layer(g, cost, alpha, Q,
+                       lr=1e-2, n_fixedpt=40, rule='GMRES'):
+    g    = g.detach()
+    cost = cost.detach()
 
-def my_update_step(c, x):
-    alpha = 0.1
-    grad  = x - c
-    x_new = torch.clamp(x - alpha*grad, min=0.0)
-    return x_new
+    # -------- solver: no gradients flow ----------------------------
+    def solver_fn(r):
+        return closed_form_solver_torch(r, g, cost, alpha, Q)
 
-fold_layer = FoldOptLayer(
-                solver      = my_solver,
-                update_step = my_update_step,
-                n_iter      = 20,
-                backprop_rule='FPI')
+    # -------- one differentiable PGD step --------------------------
+    def update_fn(r, x_star, *_):
+        # promote to (B,n) if needed
+        if r.dim() == 1:       r = r.unsqueeze(0)
+        if x_star.dim() == 1:  x_star = x_star.unsqueeze(0)
 
-c      = torch.tensor([[-1.0], [ 2.0]], requires_grad=True)   # (B=2, n=1)
-target = torch.tensor([[ 3.0], [ 1.0]])
+        g_b = g.expand_as(r) if g.dim() == 1 else g
+        return pgd_step(r, x_star, g_b, cost, Q, alpha, lr)  # (B,n)
 
-x_star = fold_layer(c)
-print("x* from FoldOptLayer:", x_star.squeeze().tolist())     # → [0.0, 2.0]
-
-loss = 0.5 * torch.sum((x_star - target) ** 2)
-loss.backward()
-
-print("Grad wrt c:", c.grad.squeeze().tolist())
+    return FoldOptLayer(solver_fn, update_fn,
+                        n_iter=n_fixedpt, backprop_rule='FPI')
 
