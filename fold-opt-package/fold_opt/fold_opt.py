@@ -76,7 +76,6 @@ class FixedPtDiffJacobian(torch.autograd.Function):
         return grad_input.float(), None, None, None
 
 
-
 class FixedPtDiffJacobianx(torch.autograd.Function):
     @staticmethod
     def forward(ctx, c, x_star_step, x_star, max_iter):
@@ -107,7 +106,6 @@ def jacobian_x_c(c, x_star_step, x_star):
     jacobian_c = torch.stack(jacobian_c).permute(1,0,2)
 
     return jacobian_x, jacobian_c
-
 
 
 def jacobian_x(c, x_star_step, x_star):
@@ -186,8 +184,6 @@ def JgP_GMRES(c, x_star_step, x_star, g, n_steps = 1000, tol = 1e-8):
 
 
     return gradient.float()
-
-
 
 
 
