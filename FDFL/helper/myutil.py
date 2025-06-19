@@ -426,7 +426,7 @@ def compute_gradient_closed_form_torch(g, r, c, alpha, Q):
     elif alpha == 'inf':
         utility = r * g
         S = torch.sum(c**2 / utility)
-        d_star = solve_closed_form(g, r, c, alpha='inf', Q=Q)
+        d_star, _ = solve_closed_form_torch(g, r, c, alpha='inf', Q=Q)
         # Off-diagonal elements
         gradient = (d_star[:, None] * c[None, :]**2) / (c[:, None] * r[None, :]**2 * g[None, :] * S)
         # Diagonal elements
@@ -439,7 +439,7 @@ def compute_gradient_closed_form_torch(g, r, c, alpha, Q):
             raise TypeError("Alpha must be a positive real number, 0, 1, or 'inf'.")
         if alpha <= 0:
             raise ValueError("Alpha must be positive for gradient computation.")
-        d_star = solve_closed_form(g, r, c, alpha, Q)
+        d_star, _ = solve_closed_form_torch(g, r, c, alpha, Q)
         term = (1.0 / alpha - 1.0) * g / r
         gradient = -(d_star[:, None] * (d_star * term)[None, :]) / Q
         diag_elements = d_star * term * (1 - d_star / Q)
