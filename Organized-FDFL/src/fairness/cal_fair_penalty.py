@@ -1,10 +1,12 @@
 import torch
 
-def atkinson_loss(pred: torch.Tensor,
-                  true: torch.Tensor,
-                  race: torch.Tensor | None = None,
-                  beta: float = 0.5,
-                  mode: str = "individual") -> torch.Tensor:
+def atkinson_loss(
+    pred: torch.Tensor,
+    true: torch.Tensor,
+    race: torch.Tensor | None = None,
+    beta: float = 0.5,
+    mode: str = "individual"
+) -> torch.Tensor:
     """
     Compute the Atkinson index on squared errors.
 
@@ -25,7 +27,6 @@ def atkinson_loss(pred: torch.Tensor,
     scalar  (shape = [])
         Atkinson index A_beta.
     """
-    # 1. positive "benefits" = squared errors (or any strictly positive quantity)
     b = (pred - true).pow(2).clamp_min(1e-12)      # shape (n,)
     mu = b.mean()                                  # overall mean μ
 
@@ -37,19 +38,29 @@ def atkinson_loss(pred: torch.Tensor,
             ede = torch.exp(b.log().mean())
         return 1.0 - ede / mu
 
+    # b1 = mean group 1 MSE and group 2 MSE average
     elif mode == "between":
-        # ----- between-group formulation on group means -----
         if race is None:
             raise ValueError("`race` tensor required for mode='between'.")
 
         g_id = race.to(dtype=torch.int64)           # (n,)
         G = int(g_id.max().item() + 1)              # number of groups
 
-        # group sizes n_g and sums Σ b_i
-        n_g = torch.bincount(g_id, minlength=G).float()          # (G,)
-        sum_g = torch.bincount(g_id, weights=b, minlength=G)     # (G,)
-        mu_g = sum_g / n_g                                        # group means μ_g
-        w_g  = n_g / b.numel()                                    # weights n_g / n
+        # Compute group masks
+        mu_g = []
+        w_g = []
+        n = b.numel()
+        for g in range(G):
+            mask = (g_id == g)
+            n_g = mask.sum()
+            if n_g == 0:
+                mu_g.append(torch.tensor(0.0, device=pred.device, dtype=pred.dtype))
+                w_g.append(torch.tensor(0.0, device=pred.device, dtype=pred.dtype))
+            else:
+                mu_g.append(b[mask].mean())
+                w_g.append(n_g.float() / n)
+        mu_g = torch.stack(mu_g)  # (G,)
+        w_g = torch.stack(w_g)    # (G,)
 
         if abs(beta - 1.0) > 1e-8:
             ede = (w_g * mu_g.pow(1.0 - beta)).sum().pow(1.0 / (1.0 - beta))
@@ -61,131 +72,49 @@ def atkinson_loss(pred: torch.Tensor,
     else:
         raise ValueError("mode must be 'individual' or 'between'.")
 
-
-
-
-
-
-
-def compute_fairness_value(pred, true, race, fairness_measure, epsilon=1e-6, d_func=None, beta=0.5):
+def mean_abs_dev(
+    pred: torch.Tensor,
+    true: torch.Tensor,
+    race: torch.Tensor,
+    mode: str = "individual"
+) -> torch.Tensor:
     """
-    Compute the fairness penalty value based on the selected fairness_measure.
-    Parameters:
-      pred: Tensor of predictions (1D, shape: [n])
-      true: Tensor of true values (1D, shape: [n])
-      race: Tensor of group indicators (1D, same shape)
-      fairness_measure: one of "individual", "group", "atkinson", "stat_parity", "accuracy_parity"
-      epsilon: extra allowed margin for stat_parity
-      d_func: weighting function for "individual" or "group" (if None, use default exponential)
-      beta: parameter used in the Atkinson index
+    Computes the mean absolute deviation (MAD) of squared errors.
+    Args:
+        pred: Predicted values, shape (n,)
+        true: Ground truth values, shape (n,)
+        race: Group membership labels (0 or 1), shape (n,)
+        mode: "individual" (MAD over all squared errors) or "group" (MAD of group MSEs)
     Returns:
-      fairness_value: a scalar torch tensor.
+        mad: scalar tensor
     """
-    if d_func is None:
-        # Default: for continuous (normalized) targets.
-        d_func = lambda y1, y2: torch.exp(-(y1 - y2).pow(2))
-    
-    n = pred.numel()
-    
-    if fairness_measure == "individual":
-        mask0 = (race == 0)
-        mask1 = (race == 1)
-        n0 = mask0.sum().item()
-        n1 = mask1.sum().item()
-        if n0 == 0 or n1 == 0:
-            return torch.tensor(0.0, device=pred.device)
-        pred0 = pred[mask0]
-        pred1 = pred[mask1]
-        true0 = true[mask0]
-        true1 = true[mask1]
-        diff = pred0.unsqueeze(1) - pred1.unsqueeze(0)
-        D = d_func(true0.unsqueeze(1), true1.unsqueeze(0))
-        f1 = (D * diff.pow(2)).sum() / (n0 * n1)
-        return f1
 
+    pred = pred.view(-1)
+    true = true.view(-1)
+    race = race.view(-1)
 
-    elif fairness_measure == "group":
-        mask0 = (race == 0)
-        mask1 = (race == 1)
-        n0 = mask0.sum().item()
-        n1 = mask1.sum().item()
-        if n0 == 0 or n1 == 0:
-            return torch.tensor(0.0, device=pred.device)
-        pred0 = pred[mask0]
-        pred1 = pred[mask1]
-        true0 = true[mask0]
-        true1 = true[mask1]
-        diff = pred0.unsqueeze(1) - pred1.unsqueeze(0)
-        D = d_func(true0.unsqueeze(1), true1.unsqueeze(0))
-        sum_term = (D * diff).sum() / (n0 * n1)
-        f2 = sum_term.pow(2)
-        return f2
-
-    elif fairness_measure == "atkinson":
-        # Use b_i = (pred - true)^2 (must be > 0)
-        b = (pred - true).pow(2).clamp_min(1e-12)
-        mu = b.mean()
-        U = b.pow(1.0 - beta).mean()
-        if abs(beta - 1.0) > 1e-8:
-            term = U.pow(1.0 / (1.0 - beta))
-        else:
-            term = torch.exp(torch.log(b).mean())
-        A = 1.0 - term / mu
-        return A
-
-    elif fairness_measure == "stat_parity":
-        mask0 = (race == 0)
-        mask1 = (race == 1)
-        n0 = mask0.sum().item()
-        n1 = mask1.sum().item()
-        if n0 == 0 or n1 == 0:
-            return torch.tensor(0.0, device=pred.device)
-        mean_pred0 = pred[mask0].mean()
-        mean_pred1 = pred[mask1].mean()
-        mean_true0 = true[mask0].mean()
-        mean_true1 = true[mask1].mean()
-        pred_diff = torch.abs(mean_pred0 - mean_pred1)
-        data_diff = torch.abs(mean_true0 - mean_true1)
-        bound = data_diff + epsilon
-        penalty = torch.relu(pred_diff - bound)
-        return penalty
-
-    elif fairness_measure == "accuracy_parity":
-        mask0 = (race == 0)
-        mask1 = (race == 1)
-        n0 = mask0.sum().item()
-        n1 = mask1.sum().item()
-        if n0 == 0 or n1 == 0:
-            return torch.tensor(0.0, device=pred.device)
-        mse0 = ((pred[mask0] - true[mask0]).pow(2)).mean()
-        mse1 = ((pred[mask1] - true[mask1]).pow(2)).mean()
-        f_acc = torch.abs(mse0 - mse1)
-        return f_acc
-
+    if mode == "individual":
+        errors = (pred - true).pow(2)
+        mean_error = errors.mean()
+        mad = torch.abs(errors - mean_error).mean()
+        return mad
+    elif mode == "between":
+        group_ids = torch.unique(race)
+        mses = []
+        for g in group_ids:
+            mask = (race == g)
+            if mask.sum() == 0:
+                continue
+            mse = ((pred[mask] - true[mask]).pow(2)).mean()
+            mses.append(mse)
+        mses = torch.stack(mses)
+        mean_mse = mses.mean()
+        mad = torch.abs(mses - mean_mse).mean()
+        return mad
     else:
-        return torch.tensor(0.0, device=pred.device)
+        raise ValueError("mode must be 'individual' or 'between'")
 
 
-    # elif fairness_measure == "group":
-    #     mask0 = (race == 0)
-    #     mask1 = (race == 1)
-    #     n0 = mask0.sum().item()
-    #     n1 = mask1.sum().item()
-    #     grad = torch.zeros_like(pred)
-    #     if n0 == 0 or n1 == 0:
-    #         return grad
-    #     pred0 = pred[mask0]
-    #     pred1 = pred[mask1]
-    #     true0 = true[mask0]
-    #     true1 = true[mask1]
-    #     diff = pred0.unsqueeze(1) - pred1.unsqueeze(0)
-    #     D = d_func(true0.unsqueeze(1), true1.unsqueeze(0))
-    #     sum_term = (D * diff).sum() / (n0 * n1)
-    #     grad0 = 2 * sum_term * (D.sum(dim=1)) / (n0 * n1)
-    #     grad1 = -2 * sum_term * (D.sum(dim=0)) / (n0 * n1)
-    #     grad[mask0] = grad0
-    #     grad[mask1] = grad1
-    #     return grad
 
     
 def compute_fairness_grad(pred, true, race, fairness_measure, epsilon=0.0, d_func=None, beta=0.5):

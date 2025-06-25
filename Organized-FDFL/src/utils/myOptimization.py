@@ -355,33 +355,44 @@ def jacobian_d_wrt_b(b, c, g, Q, alpha):
 
 import collections
 
+import numpy as np
+
 def solve_coupled_group_alpha(b, c, group_idx, Q, alpha, beta):
     """
     Calculates the optimal allocation d using the closed-form solution.
     
-    Args:
-        b (np.ndarray): Vector of benefit coefficients.
-        c (np.ndarray): Vector of cost coefficients.
-        group_idx (np.ndarray): Array of group assignments for each individual.
-        Q (float): Total budget.
-        alpha (float): Outer fairness parameter.
-        beta (float): Inner fairness parameter.
-
-    Returns:
-        np.ndarray: The optimal allocation vector d*.
+    This version handles the standard formulation for beta < 1 and the modified,
+    positive-definite formulation for beta > 1.
     """
-    if beta == 1:
+    # Ensure inputs are NumPy arrays
+    b = np.asarray(b).reshape(-1)
+    c = np.asarray(c).reshape(-1)
+    group_idx = np.asarray(group_idx).reshape(-1)
+
+    if abs(beta - 1.0) < 1e-9:
         raise ValueError("The closed-form solution is not defined for beta = 1.")
-    
+
     n = len(b)
     d_star = np.zeros(n)
-    gamma = beta + alpha - alpha * beta
-    if gamma == 0:
-        raise ValueError("gamma (alpha + beta - alpha*beta) cannot be zero.")
+    
+    # --- Define parameters based on the beta regime ---
+    if beta > 1:
+        # New formulation for beta > 1
+        gamma = beta - 2 + alpha - alpha * beta
+        const_factor = beta - 1
+        s_exp = (2 - alpha) / gamma
+        const_exp = (alpha - 2) / gamma
+    else: # beta < 1
+        # Original formulation
+        gamma = beta + alpha - alpha * beta
+        const_factor = 1 - beta
+        s_exp = -alpha / gamma
+        const_exp = alpha / gamma
+        
+    if abs(gamma) < 1e-9:
+        raise ValueError("Gamma exponent is zero, leading to instability.")
 
     unique_groups = np.unique(group_idx)
-    
-    # Store group-level aggregates in dictionaries keyed by group label
     S, H, Psi = {}, {}, {}
     
     for k in unique_groups:
@@ -389,26 +400,28 @@ def solve_coupled_group_alpha(b, c, group_idx, Q, alpha, beta):
         G_k = np.sum(members_mask)
         b_k, c_k = b[members_mask], c[members_mask]
         
+        # S_k and H_k formulas are identical in both regimes
         S[k] = np.sum((c_k ** (-(1 - beta) / beta)) * (b_k ** ((1 - beta) / beta)))
         H[k] = np.sum((c_k ** ((beta - 1) / beta)) * (b_k ** ((1 - beta) / beta)))
         
-        if S[k] == 0:
-             raise ValueError(f"S_k for group {k} is zero. Cannot proceed.")
+        if abs(S[k]) < 1e-12:
+             raise ValueError(f"S_k for group {k} is near zero. Cannot proceed.")
 
-        Psi[k] = (
-            (G_k ** ((alpha - 1) / gamma)) *
-            (S[k] ** (-alpha / gamma)) *
-            ((1 - beta) ** (alpha / gamma))
-        )
+        # Psi_k formula changes based on the regime's exponents
+        if beta > 1:
+             Psi[k] = (S[k] ** s_exp) * (const_factor ** const_exp)
+        else: # beta < 1
+             Psi[k] = (G_k ** ((alpha - 1) / gamma)) * (S[k] ** s_exp) * (const_factor ** const_exp)
 
-    # Calculate global normalization constant Xi
+    # Global normalization constant Xi
     Xi = np.sum([H[k] * Psi[k] for k in unique_groups])
-    if Xi == 0:
-        raise ValueError("Normalization constant Xi is zero. Cannot divide by zero.")
+    if abs(Xi) < 1e-12:
+        raise ValueError("Normalization constant Xi is near zero.")
 
-    # Assemble the final solution for each d_i using its group's prefactor
+    # Assemble the final solution
     for k in unique_groups:
         members_mask = (group_idx == k)
+        # phi_i formula is identical in both regimes
         phi = (c[members_mask] ** (-1 / beta)) * (b[members_mask] ** ((1 - beta) / beta))
         d_star[members_mask] = (Q / Xi) * Psi[k] * phi
 
@@ -416,131 +429,365 @@ def solve_coupled_group_alpha(b, c, group_idx, Q, alpha, beta):
 
 def solve_coupled_group_grad(b, c, group_idx, Q, alpha, beta):
     """
-    Computes the Jacobian matrix d(d*)/d(b) using the analytical formula.
-    
-    Args:
-        b (np.ndarray): Vector of benefit coefficients.
-        c (np.ndarray): Vector of cost coefficients.
-        group_idx (np.ndarray): Array of group assignments for each individual.
-        ... and other parameters
-        
-    Returns:
-        np.ndarray: The n x n Jacobian matrix.
+    Computes the Jacobian matrix d(d*)/d(b) using the analytical formula,
+    handling both regimes for beta.
     """
+    b = np.asarray(b).reshape(-1)
+    c = np.asarray(c).reshape(-1)
+    group_idx = np.asarray(group_idx).reshape(-1)
 
-    
     n = len(b)
     jacobian = np.zeros((n, n))
 
-    # --- 1. Forward Pass: Pre-compute all terms from the d* calculation ---
-    gamma = beta + alpha - alpha * beta
-    unique_groups = np.unique(group_idx)
-    S, H, Psi, phi = {}, {}, {}, {}
+    # --- 1. Forward Pass: Pre-compute terms using the same logic as the solver ---
+    # Define parameters based on the beta regime
+    if beta > 1:
+        gamma = beta - 2 + alpha - alpha * beta
+        psi_s_exp_factor = (2 - alpha) / gamma
+    else: # beta < 1
+        gamma = beta + alpha - alpha * beta
+        psi_s_exp_factor = -alpha / gamma
 
-    for k in unique_groups:
-        members_mask = (group_idx == k)
-        G_k = np.sum(members_mask)
-        b_k, c_k = b[members_mask], c[members_mask]
-        S[k] = np.sum((c_k ** (-(1 - beta) / beta)) * (b_k ** ((1 - beta) / beta)))
-        H[k] = np.sum((c_k ** ((beta - 1) / beta)) * (b_k ** ((1 - beta) / beta)))
-        Psi[k] = ((G_k ** ((alpha - 1) / gamma)) * (S[k] ** (-alpha / gamma)) * ((1 - beta) ** (alpha / gamma)))
-    
-    Xi = np.sum([H[k] * Psi[k] for k in unique_groups])
+    # Get the allocation vector d* and all intermediate terms (S, H, Psi, Xi)
+    # by calling the solver function itself.
     d_star = solve_coupled_group_alpha(b, c, group_idx, Q, alpha, beta)
     
-    # Pre-compute individual phi_i terms
+    unique_groups = np.unique(group_idx)
+    S, H, Psi = {}, {}, {}
+    # Re-calculate intermediate terms to have them available
+    for k in unique_groups:
+        members_mask = (group_idx == k)
+        G_k, b_k, c_k = np.sum(members_mask), b[members_mask], c[members_mask]
+        S[k] = np.sum((c_k ** (-(1 - beta) / beta)) * (b_k ** ((1 - beta) / beta)))
+        H[k] = np.sum((c_k ** ((beta - 1) / beta)) * (b_k ** ((1 - beta) / beta)))
+        
+        const_factor = (beta - 1) if beta > 1 else (1 - beta)
+        if beta > 1:
+            Psi[k] = (S[k] ** psi_s_exp_factor) * (const_factor ** ((alpha - 2) / gamma))
+        else:
+            Psi[k] = (G_k ** ((alpha - 1) / gamma)) * (S[k] ** psi_s_exp_factor) * (const_factor ** (alpha/gamma))
+            
+    Xi = np.sum([H[k] * Psi[k] for k in unique_groups])
     phi_all = (c ** (-1 / beta)) * (b ** ((1 - beta) / beta))
 
     # --- 2. Backward Pass: Calculate Jacobian column by column ---
     for j in range(n):  # Differentiating with respect to b_j
         m = group_idx[j]  # Group of the variable b_j
         
-        # --- Derivatives of intermediate terms w.r.t. b_j ---
-        # These are non-zero only for group m
-        
+        # Derivatives of S and H are the same in both regimes
         dS_m_db_j = ((1 - beta) / beta) * (c[j] ** (-(1 - beta) / beta)) * (b[j] ** ((1 - 2 * beta) / beta))
         dH_m_db_j = ((1 - beta) / beta) * (c[j] ** ((beta - 1) / beta)) * (b[j] ** ((1 - 2 * beta) / beta))
-        dPsi_m_db_j = (-alpha / (gamma * S[m])) * Psi[m] * dS_m_db_j
+        
+        # d(Psi)/d(S) * d(S)/d(b_j)
+        dPsi_m_db_j = (psi_s_exp_factor / S[m]) * Psi[m] * dS_m_db_j
         dXi_db_j = dH_m_db_j * Psi[m] + H[m] * dPsi_m_db_j
         
         for i in range(n):  # Calculating derivative for d_i
             k = group_idx[i]  # Group of the component d_i
             
-            # d(phi_i)/d(b_j) is non-zero only if i == j
             dphi_i_db_j = 0
             if i == j:
-                dphi_i_db_j = ((1 - beta) / beta) * (c[i] ** (-1/beta)) * (b[i] ** ((1 - 2 * beta) / beta))
+                dphi_i_db_j = ((1 - beta) / beta) * (c[i] ** (-1 / beta)) * (b[i] ** ((1 - 2 * beta) / beta))
 
-            # d(Psi_k)/d(b_j) is non-zero only if k == m
             dPsi_k_db_j = dPsi_m_db_j if k == m else 0
             
-            # Derivative of the numerator term N_i = Q * Psi_k * phi_i
             dN_i_db_j = Q * (dPsi_k_db_j * phi_all[i] + Psi[k] * dphi_i_db_j)
             
-            # Final assembly using the quotient rule derivative: (u/v)' = u'/v - u*v'/v^2
             jacobian[i, j] = (1 / Xi) * dN_i_db_j - (d_star[i] / Xi) * dXi_db_j
-
 
     return jacobian
 
 def compute_coupled_group_obj(d, b, group_idx, alpha, beta):
     """
-    Calculates the objective value for the coupled alpha-fairness problem.
-
-    This function correctly handles the special cases for alpha and beta.
-
-    Args:
-        d (np.ndarray): The allocation vector d.
-        b (np.ndarray): The vector of benefit coefficients.
-        group_idx (np.ndarray): An array of group assignments for each individual.
-        alpha (float or str): The outer fairness parameter. Can be 'inf'.
-        beta (float): The inner fairness parameter.
-
-    Returns:
-        float: The final scalar objective value.
+    Calculates the objective value, handling the modified formulation for beta > 1.
     """
-    # --- Step 1: Calculate all group utilities (mu_k) ---
+    d = np.asarray(d).reshape(-1)
+    b = np.asarray(b).reshape(-1)
+    group_idx = np.asarray(group_idx).reshape(-1)
     
-    # Calculate the argument of the inner utility function, y_i = b_i * d_i
-    # Add a small epsilon for numerical stability with log operations
+    # Add a small epsilon for numerical stability
     y = b * d + 1e-12
-
-    # Calculate individual utilities g_beta(y_i)
-    if abs(beta - 1.0) < 1e-9:
-        # Case beta = 1 (logarithmic utility)
-        g_beta_values = np.log(y)
-    else:
-        # General case for beta
-        g_beta_values = (y**(1 - beta)) / (1 - beta)
-
-    # Aggregate to find the mean utility for each group
     unique_groups = np.unique(group_idx)
     mu_k_values = np.zeros(len(unique_groups))
-    for i, k in enumerate(unique_groups):
-        members_mask = (group_idx == k)
-        mu_k_values[i] = np.mean(g_beta_values[members_mask])
 
-    # --- Step 2: Apply the outer fairness function (f_alpha) and aggregate ---
-
-    if alpha == float('inf') or str(alpha).lower() == 'inf':
-        # Case alpha = inf (Max-Min Fairness)
-        # The value of the Rawlsian objective is the utility of the worst-off group.
-        objective_value = np.min(mu_k_values)
-
-    elif abs(alpha - 1.0) < 1e-9:
-        # Case alpha = 1 (Proportional Fairness / Logarithmic Utility)
-        # Objective is sum(log(mu_k))
-        objective_value = np.sum(np.log(mu_k_values + 1e-12))
-    
-    elif abs(alpha - 0.0) < 1e-9:
-        # Case alpha = 0 (Utilitarian)
-        # Objective is sum(mu_k)
-        objective_value = np.sum(mu_k_values)
-        
+    # --- Step 1: Calculate group utilities (mu_k) based on beta regime ---
+    if beta > 1:
+        # New formulation for beta > 1
+        for i, k in enumerate(unique_groups):
+            members_mask = (group_idx == k)
+            y_k = y[members_mask]
+            # mu_k = (beta - 1) / sum(y_i^(1-beta))
+            denominator = np.sum(y_k**(1 - beta))
+            mu_k_values[i] = (beta - 1) / (denominator + 1e-12)
     else:
-        # General case for alpha
-        # Objective is sum(mu_k^(1-alpha) / (1-alpha))
+        # Original formulation for beta < 1
+        if abs(beta - 1.0) < 1e-9:
+            g_beta_values = np.log(y)
+        else:
+            g_beta_values = (y**(1 - beta)) / (1 - beta)
+        
+        for i, k in enumerate(unique_groups):
+            members_mask = (group_idx == k)
+            mu_k_values[i] = np.mean(g_beta_values[members_mask])
+
+    # --- Step 2: Apply the outer fairness function (f_alpha) ---
+    # This part is now safe because mu_k is always positive.
+    if alpha == float('inf') or str(alpha).lower() == 'inf':
+        objective_value = np.min(mu_k_values)
+    elif abs(alpha - 1.0) < 1e-9:
+        objective_value = np.sum(np.log(mu_k_values + 1e-12))
+    elif abs(alpha - 0.0) < 1e-9:
+        objective_value = np.sum(mu_k_values)
+    else:
         f_alpha_values = (mu_k_values**(1 - alpha)) / (1 - alpha)
         objective_value = np.sum(f_alpha_values)
         
     return objective_value
+
+
+
+def compute_coupled_group_obj_torch(d, b, group_idx, alpha, beta):
+    """
+    Calculates the objective value using PyTorch, handling the modified formulation for beta > 1.
+    """
+    d = torch.as_tensor(d, dtype=torch.float64)
+    b = torch.as_tensor(b, dtype=torch.float64)
+    group_idx = torch.as_tensor(group_idx)
+    
+    if not d.requires_grad:
+        d.requires_grad_(True)
+    
+    epsilon = 1e-12
+    y = b * d + epsilon
+    unique_groups = torch.unique(group_idx)
+    mu_k_values = torch.zeros(len(unique_groups), dtype=torch.float64, device=d.device)
+
+    if beta > 1:
+        for i, k in enumerate(unique_groups):
+            members_mask = (group_idx == k)
+            y_k = y[members_mask]
+            denominator = torch.sum(y_k.pow(1 - beta))
+            mu_k_values[i] = (beta - 1) / (denominator + epsilon)
+    else:
+        if abs(beta - 1.0) < epsilon:
+            g_beta_values = torch.log(y)
+        else:
+            g_beta_values = (y.pow(1 - beta)) / (1 - beta)
+        
+        for i, k in enumerate(unique_groups):
+            members_mask = (group_idx == k)
+            mu_k_values[i] = torch.mean(g_beta_values[members_mask])
+
+    if alpha == 'inf' or (isinstance(alpha, str) and alpha.lower() == 'inf'):
+        objective_value = torch.min(mu_k_values)
+    elif abs(alpha - 1.0) < epsilon:
+        objective_value = torch.sum(torch.log(mu_k_values + epsilon))
+    elif abs(alpha - 0.0) < epsilon:
+        objective_value = torch.sum(mu_k_values)
+    else:
+        f_alpha_values = (mu_k_values.pow(1 - alpha)) / (1 - alpha)
+        objective_value = torch.sum(f_alpha_values)
+        
+    return objective_value, d
+
+
+
+def compute_gradient_closed_form(g, r, c, alpha, Q):
+    """
+    Compute the analytical gradient of the optimal solution with respect to r.
+
+    This function computes the gradient matrix where each element (i, k) is the partial derivative
+    of d_i* with respect to r_k.
+
+    Parameters:
+    - g (np.ndarray): Gain factors (g_i), shape (n,)
+    - r (np.ndarray): Risk values (r_i), shape (n,)
+    - c (np.ndarray): Cost values (c_i), shape (n,)
+    - alpha (float or str): Fairness parameter. Can be 0, 1, 'inf', or a positive real number.
+    - Q (float): Total budget.
+
+    Returns:
+    - gradient (np.ndarray): Gradient matrix of shape (n, n)
+    """
+    if alpha == 1:
+        S = np.sum(c / (r * g))
+
+    if alpha == 0:
+        # Utilitarian case: Allocate everything to the individual with the highest ratio
+        ratios = (r * g) / c
+        i_star = np.argmax(ratios)
+        # Gradient is Q * g_i / c_i at the allocated index, zero elsewhere
+        gradient[i_star, i_star] = Q * g[i_star] / c[i_star]
+        return gradient
+
+    elif alpha == 'inf':
+        # Maximin case
+        n = len(c)
+        utility = r * g  # Shape: (n,)
+        S = np.sum(c**2 / utility)  # Scalar
+
+        # Compute d_star
+        d_star, _ = solve_closed_form(g,r,c, alpha='inf', Q=Q)  # Shape: (n,)
+
+        # Initialize gradient matrix
+        gradient = np.zeros((n, n))
+
+        for i in range(n):
+            for k in range(n):
+                if i == k:
+                    # ∂d_i*/∂r_i = -d_i*/r_i - (d_i* * c_i) / (r_i * g_i * S)
+                    gradient[i, k] = -d_star[i] / r[i] - (d_star[i] * c[i]) / (r[i] * g[i] * S)
+                else:
+                    # ∂d_i*/∂r_k = (d_i* * c_k^2) / (c_i * r_k^2 * g_k * S)
+                    gradient[i, k] = (d_star[i] * c[k]**2) / (c[i] * r[k]**2 * g[k] * S)
+        return gradient
+
+    else:
+        # General alpha case
+        if not isinstance(alpha, (int, float)):
+            raise TypeError("Alpha must be a positive real number, 0, 1, or 'inf'.")
+        if alpha <= 0:
+            raise ValueError("Alpha must be positive for gradient computation.")
+
+        # Compute the optimal decision variables
+        d_star, _ = solve_closed_form(g, r, c, alpha, Q)  # Shape: (n,)
+
+        # Compute the term (1/alpha - 1) * g / r
+        term = (1.0 / alpha - 1.0) * g / r  # Shape: (n,)
+
+        # Compute the outer product for off-diagonal elements
+        # Each element (i, k) = -d_star[i] * d_star[k] * term[k] / Q
+        gradient = -np.outer(d_star, d_star * term) / Q  # Shape: (n, n)
+
+        # Compute the diagonal elements
+        # Each diagonal element (i, i) = d_star[i] * term[i] * (1 - d_star[i]/Q)
+        diag_elements = d_star * term * (1 - d_star / Q)  # Shape: (n,)
+
+        # Set the diagonal elements
+        np.fill_diagonal(gradient, diag_elements)
+
+        return gradient
+    
+
+# ==============================================================================
+# ===== 1. INDIVIDUAL-BASED ALPHA-FAIRNESS GRADIENT
+# ==============================================================================
+
+def compute_individual_gradient_analytical(d: torch.Tensor, b: torch.Tensor, alpha):
+    """
+    Computes the analytical gradient of individual-based alpha-fairness w.r.t. decisions 'd'.
+    
+    This function implements the derived mathematical formulas directly without using autograd.
+
+    Args:
+        d (torch.Tensor): The decision variables for each individual.
+        b (torch.Tensor): The benefit for each individual.
+        alpha (float or str): The fairness parameter.
+
+    Returns:
+        torch.Tensor: The gradient of the objective with respect to 'd'.
+    """
+    # Ensure inputs are tensors
+    d = torch.as_tensor(d, dtype=torch.float64)
+    b = torch.as_tensor(b, dtype=torch.float64)
+    u = b * d
+
+    if alpha == 1:
+        # Gradient formula: 1 / d_j
+        grad = 1.0 / d
+    elif alpha == 0:
+        # Gradient formula: b_j
+        grad = b
+    elif alpha == 'inf' or (isinstance(alpha, str) and alpha.lower() == 'inf'):
+        # Gradient formula: b_j if j is the argmin, 0 otherwise
+        grad = torch.zeros_like(d)
+        min_idx = torch.argmin(u)
+        grad[min_idx] = b[min_idx]
+    else:
+        # General gradient formula: b_j^(1-alpha) * d_j^(-alpha)
+        # We can also write this as u_j^(-alpha) * b_j
+        grad = (u.pow(-alpha)) * b
+        
+    return grad
+
+# ==============================================================================
+# ===== 2. GROUP-BASED ALPHA-FAIRNESS GRADIENT
+# ==============================================================================
+
+def compute_group_gradient_analytical(d: torch.Tensor, b: torch.Tensor, group_idx: torch.Tensor, alpha, beta):
+    """
+    Computes the analytical gradient of group-based alpha-fairness w.r.t. decisions 'd'.
+
+    This function implements the derived chain rule formula directly.
+    Gradient_j = (dJ/d(mu_Gj)) * (d(mu_Gj)/du_j) * (du_j/d_j)
+
+    Args:
+        d (torch.Tensor): The decision variables for each individual.
+        b (torch.Tensor): The benefit for each individual.
+        group_idx (torch.Tensor): The group index for each individual.
+        alpha (float or str): The outer fairness parameter.
+        beta (float): The inner group utility fairness parameter.
+
+    Returns:
+        torch.Tensor: The gradient of the objective with respect to 'd'.
+    """
+    # Ensure inputs are tensors
+    d = torch.as_tensor(d, dtype=torch.float64)
+    b = torch.as_tensor(b, dtype=torch.float64)
+    group_idx = torch.as_tensor(group_idx)
+    u = b * d
+    epsilon = 1e-12
+
+    unique_groups, group_inv_indices, group_counts = torch.unique(group_idx, return_inverse=True, return_counts=True)
+    num_groups = len(unique_groups)
+    mu_k_values = torch.zeros(num_groups, dtype=torch.float64)
+    
+    # --- Pre-computation: Calculate mu_k for each group ---
+    if beta > 1:
+        for i, k in enumerate(unique_groups):
+            members_mask = (group_idx == k)
+            y_k = u[members_mask]
+            denominator = torch.sum(y_k.pow(1 - beta))
+            mu_k_values[i] = (beta - 1) / (denominator + epsilon)
+    else:
+        if abs(beta - 1.0) < epsilon:
+            g_beta_values = torch.log(u + epsilon)
+        else:
+            g_beta_values = (u.pow(1 - beta)) / (1 - beta)
+        # Use scatter_add to sum g_beta_values for each group, then divide by count
+        sum_g_beta_k = torch.zeros(num_groups, dtype=torch.float64).scatter_add_(0, group_inv_indices, g_beta_values)
+        mu_k_values = sum_g_beta_k / group_counts
+
+    # --- Term 1: dJ/d(mu_k) ---
+    dJ_dmuk = torch.zeros_like(mu_k_values)
+    if alpha == 1:
+        dJ_dmuk = 1.0 / (mu_k_values + epsilon)
+    elif alpha == 0:
+        dJ_dmuk = torch.ones_like(mu_k_values)
+    elif alpha == 'inf' or (isinstance(alpha, str) and alpha.lower() == 'inf'):
+        min_group_idx = torch.argmin(mu_k_values)
+        dJ_dmuk[min_group_idx] = 1.0
+    else:
+        dJ_dmuk = mu_k_values.pow(-alpha)
+
+    # Map the group-level derivative back to each individual
+    dJ_dmuk_mapped = dJ_dmuk[group_inv_indices]
+
+    # --- Term 2: d(mu_k)/d(u_j) ---
+    dmuk_duj = torch.zeros_like(d)
+    if beta > 1:
+        # Formula: mu_k^2 * u_j^(-beta)
+        mu_k_mapped = mu_k_values[group_inv_indices]
+        dmuk_duj = mu_k_mapped.pow(2) * u.pow(-beta)
+    else:
+        # Formula: (1/N_k) * u_j^(-beta)
+        n_k_mapped = group_counts[group_inv_indices]
+        dmuk_duj = (1.0 / n_k_mapped) * u.pow(-beta)
+        
+    # --- Term 3: du_j/d_j ---
+    dud_dj = b
+
+    # --- Combine using Chain Rule ---
+    gradient = dJ_dmuk_mapped * dmuk_duj * dud_dj
+    return gradient
+
