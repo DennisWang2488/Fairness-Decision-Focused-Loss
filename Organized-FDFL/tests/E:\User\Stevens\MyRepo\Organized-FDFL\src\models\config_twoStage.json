@@ -1,9 +1,0 @@
-{
-    "n_sample": 5000,
-    "alpha": 2,
-    "beta": 2.5,
-    "Q": 2000,
-    "epochs": 100,
-    "lambdas": 1.0,
-    "lr": 0.01
-}
