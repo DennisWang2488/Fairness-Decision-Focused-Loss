@@ -73,12 +73,12 @@ End-to-end experimental code used in the FACCT paper:
 
 ## TODO
 
-- Change min-risk from 0.001 to 1 and verify Individual and Group Regret Performance
+- Change min-risk from 0.001 to 1 and verify Individual and Group Regret Performance (Done)
 
 - Write fold-opt subsection.
 
 - For group, report group-wise performance (MSE and Decision Solution&Objective)
-  - Closed-Form, Finite-diff, and fold-opt
+  - Closed-Form, Finite-diff, and fold-opt.
 
 - <b>For Fold-OPT Change PGD closed-form to solver</b>
 

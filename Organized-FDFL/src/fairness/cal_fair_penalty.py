@@ -27,8 +27,12 @@ def atkinson_loss(
     scalar  (shape = [])
         Atkinson index A_beta.
     """
+    device = pred.device
+    pred = pred.to(device)
+    true = true.to(device)
+    race = race.to(device) if race is not None else None
     b = (pred - true).pow(2).clamp_min(1e-12)      # shape (n,)
-    mu = b.mean()                                  # overall mean μ
+    mu = b.mean()                                # overall mean μ
 
     if mode == "individual":
         # ----- overall / individual-level formulation -----
@@ -92,6 +96,11 @@ def mean_abs_dev(
     pred = pred.view(-1)
     true = true.view(-1)
     race = race.view(-1)
+    # to device
+    device = pred.device
+    pred = pred.to(device)
+    true = true.to(device)
+    race = race.to(device)
 
     if mode == "individual":
         errors = (pred - true).pow(2)

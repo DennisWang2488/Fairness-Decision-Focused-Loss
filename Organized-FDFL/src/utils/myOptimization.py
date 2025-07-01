@@ -504,16 +504,17 @@ def compute_group_gradient_analytical(d: torch.Tensor, b: torch.Tensor, group_id
         torch.Tensor: The gradient of the objective with respect to 'd'.
     """
     # Ensure inputs are tensors
-    d = torch.as_tensor(d, dtype=torch.float64)
-    b = torch.as_tensor(b, dtype=torch.float64)
-    group_idx = torch.as_tensor(group_idx)
+    d = torch.as_tensor(d, dtype=torch.float64, device=d.device)
+    b = torch.as_tensor(b, dtype=torch.float64, device=d.device)
+    group_idx = torch.as_tensor(group_idx, device=d.device)
+    
     u = b * d
     epsilon = 1e-12
     beta = alpha
 
     unique_groups, group_inv_indices, group_counts = torch.unique(group_idx, return_inverse=True, return_counts=True)
     num_groups = len(unique_groups)
-    mu_k_values = torch.zeros(num_groups, dtype=torch.float64)
+    mu_k_values = torch.zeros(num_groups, dtype=torch.float64, device=d.device)
     
     # --- Pre-computation: Calculate mu_k for each group ---
     if beta > 1:
@@ -528,11 +529,11 @@ def compute_group_gradient_analytical(d: torch.Tensor, b: torch.Tensor, group_id
         else:
             g_beta_values = (u.pow(1 - beta)) / (1 - beta)
         # Use scatter_add to sum g_beta_values for each group, then divide by count
-        sum_g_beta_k = torch.zeros(num_groups, dtype=torch.float64).scatter_add_(0, group_inv_indices, g_beta_values)
-        mu_k_values = sum_g_beta_k / group_counts
+        sum_g_beta_k = torch.zeros(num_groups, dtype=torch.float64, device=d.device).scatter_add_(0, group_inv_indices, g_beta_values)
+        mu_k_values = sum_g_beta_k
 
     # --- Term 1: dJ/d(mu_k) ---
-    dJ_dmuk = torch.zeros_like(mu_k_values)
+    dJ_dmuk = torch.zeros_like(mu_k_values, device=d.device)
     if alpha == 1:
         dJ_dmuk = 1.0 / (mu_k_values + epsilon)
     elif alpha == 0:
