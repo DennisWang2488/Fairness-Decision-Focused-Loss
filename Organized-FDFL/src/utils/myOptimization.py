@@ -188,6 +188,43 @@ def compute_gradient_closed_form(g, r, c, alpha, Q):
 
         return gradient
 
+def solve_optimization(gainF, risk, cost, alpha, Q):
+    gainF = gainF.detach().cpu().numpy() if isinstance(gainF, torch.Tensor) else gainF
+    risk = risk.detach().cpu().numpy() if isinstance(risk, torch.Tensor) else risk
+    cost = cost.detach().cpu().numpy() if isinstance(cost, torch.Tensor) else cost
+
+    risk = risk.clip(0.001)
+    gainF, risk, cost = gainF.flatten(), risk.flatten(), cost.flatten()
+    d = cp.Variable(risk.shape, nonneg=True)
+
+    if gainF.shape != risk.shape or risk.shape != cost.shape:
+        raise ValueError("Dimensions of gainF, risk, and cost do not match")
+
+    utils = cp.multiply(cp.multiply(gainF, risk), d)
+    constraints = [d >= 0, cp.sum(cost * d) <= Q]
+
+    if alpha == 'inf':
+        t = cp.Variable()
+        objective = cp.Maximize(t)
+        constraints.append(utils >= t)
+    elif alpha == 1:
+        objective = cp.Maximize(cp.sum(cp.log(utils)))
+    elif alpha == 0:
+        objective = cp.Maximize(cp.sum(utils))
+    else:
+        objective = cp.Maximize(cp.sum(utils**(1-alpha)) / (1-alpha))
+
+    problem = cp.Problem(objective, constraints)
+    problem.solve(solver=cp.MOSEK, verbose=False, warm_start=True, mosek_params={'MSK_IPAR_LOG': 1})
+
+    if problem.status != 'optimal':
+        print(f"Warning: Problem status is {problem.status}")
+
+    optimal_decision = d.value
+    optimal_value = AlphaFairness(optimal_decision * gainF * risk, alpha)
+
+    return optimal_decision, optimal_value
+
 
 
 def alpha_fairness_group_utilities(benefit, allocation, group, alpha):

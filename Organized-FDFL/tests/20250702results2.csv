@@ -1,0 +1,3 @@
+Group,Grad Method,Alpha,Lambda,Fairness,G0_decision_obj,G0_decision_obj_std,G0_mse,G0_mse_std,G0_true_benefit,G0_true_benefit_std,fairness,fairness_std,mse,mse_std,regret,regret_std,training_time,training_time_std
+False,closed-form,2,0,mad,10.088964,0.0,7.832386016845703,0.0,3.2647061347961426,0.0,6.3020734786987305,0.0,7.832386016845703,0.0,0.04386025490851388,0.0,0.03433370590209961,0.0
+False,finite-diff,2,0,mad,10.298169,0.0,9.414669036865234,0.0,3.2647061347961426,0.0,7.256433010101318,0.0,9.414669036865234,0.0,0.03871146362700849,0.0,0.067535400390625,0.0
