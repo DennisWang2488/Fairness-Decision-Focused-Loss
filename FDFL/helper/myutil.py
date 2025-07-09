@@ -254,16 +254,19 @@ def solve_closed_form(g, r, c, alpha, Q):
     else:
         if alpha <= 0:
             raise ValueError("Alpha must be positive for general case.")
-        #
-        # d_i* = (c_i^(-1/alpha) * (r_i*g_i)^(1/alpha - 1) * Q) / sum_j(c_j^(-1/alpha) * (r_j*g_j)^(1/alpha - 1))
         
-        numerator = np.power(c, -1/alpha) * np.power(utility, 1/alpha - 1)
-        denominator = np.sum(numerator)
+        # This vector is common to the numerator of d_i and the terms in the sum
+        # It corresponds to c_i^(-1/alpha) * utility_i^(1/alpha - 1)
+        common_terms = np.power(c, -1/alpha) * np.power(utility, 1/alpha - 1)
+        
+        # The correct denominator is Σ_j(c_j * common_term_j)
+        denominator = np.sum(c * common_terms)
         
         if denominator == 0:
             raise ValueError("Denominator is zero in closed-form solution.")
             
-        d_star_closed = (numerator / denominator) * Q
+        # The numerator of d_i is Q * common_term_i
+        d_star_closed = (Q * common_terms) / denominator
     
     # if not np.isclose(np.sum(c * d_star_closed), Q, rtol=1e-5):
     #     raise ValueError("Solution does not satisfy budget constraint.")

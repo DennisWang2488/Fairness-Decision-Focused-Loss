@@ -17,8 +17,6 @@ src/fairness/fairness-def.md
 src/fairness/__pycache__/__init__.cpython-311.pyc
 src/fairness/__pycache__/cal_fair_penalty.cpython-311.pyc
 src/models/__init__.py
-src/models/config_c.json
-src/models/config_twoStage.json
 src/models/__pycache__/__init__.cpython-311.pyc
 src/models/__pycache__/myOptimization.cpython-311.pyc
 src/models/__pycache__/myPrediction.cpython-311.pyc
@@ -35,7 +33,5 @@ src/utils/__pycache__/myPrediction.cpython-311.pyc
 src/utils/__pycache__/plots.cpython-311.pyc
 tests/FDFL-temp-cvxpylayer-LR.ipynb
 tests/test.ipynb
-tests/testClosedForm.ipynb
 tests/testGroupAlpha.ipynb
 tests/testGroup_closedForm.ipynb
-tests/testTwoStage.ipynb
