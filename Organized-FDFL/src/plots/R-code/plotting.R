@@ -3,7 +3,7 @@
 # ==============================================================================
 
 # Install packages if you don't have them
-install.packages(c("data.table", "ggplot2", "scales"))
+# install.packages(c("data.table", "ggplot2", "scales"))
 
 library(data.table)
 library(ggplot2)
@@ -28,13 +28,11 @@ tryCatch({
     bps_mean_t = rnorm(5000, 130, 15)
   )
 })
-race = df$race
 
 # --- Preprocessing and Sampling ---
 set.seed(42)
 df <- df[sample(.N, 5000)]
-df[, race := factor(fifelse(race == 0, "white", "black"), levels = c("white", "black"))]
-
+df[, race := factor(fifelse(race == 0, "white", "black"))]
 
 # --- Define Plotting Styles ---
 style_palette <- c("white" = "#ffa600", "black" = "#764885")
@@ -45,12 +43,13 @@ style_linestyles <- c("white" = "solid", "black" = "dashed")
 # ==============================================================================
 
 df[, bps_above_139_ind := fifelse(bps_mean_t > 139, 1, 0)]
+print(df[, bps_above_139_ind := fifelse(bps_mean_t > 139, 1, 0)])
 
 # ==============================================================================
 # 3. CORE PLOTTING FUNCTION
 # ==============================================================================
 
-create_r_style_plot <- function(df, y_col, x_col, main_title, y_label, save_path, span, use_log_scale = FALSE, y_ticks = NULL) {
+create_r_style_plot <- function(df, y_col, x_col, main_title, y_label, span, use_log_scale = FALSE, y_ticks = NULL) {
   
   # --- Data Aggregation ---
   # Create a copy to avoid modifying the original data.table
@@ -64,11 +63,15 @@ create_r_style_plot <- function(df, y_col, x_col, main_title, y_label, save_path
   setnames(percentile_data, "agg_y", y_col)
   
   # Aggregate by decile (for circles and CI bars)
-  dt_plot[, decile_bin := cut(.SD[[1]], breaks = quantile(.SD[[1]], probs = 0:10/10), labels = FALSE, include.lowest = TRUE), .SDcols = x_col]
+  dt_plot[, decile_bin := {
+    breaks <- unique(quantile(.SD[[1]], probs = 0:10/10, na.rm = TRUE))
+    cut(.SD[[1]], breaks = breaks, labels = FALSE, include.lowest = TRUE)
+  }, .SDcols = x_col]
   decile_data <- dt_plot[, .(
     mean = mean(.SD[[1]]),
     se = sd(.SD[[1]]) / sqrt(.N)
   ), by = .(race, decile_bin), .SDcols = y_col]
+  decile_data <- na.omit(decile_data) # Remove rows where decile_bin might be NA
   decile_data[, `:=`(
     ci_lower = mean - 1.96 * se,
     ci_upper = mean + 1.96 * se,
@@ -79,6 +82,9 @@ create_r_style_plot <- function(df, y_col, x_col, main_title, y_label, save_path
   vlocation_threshold <- NA
   if (use_log_scale) {
     epsilon <- 0.001
+    # Ensure lower CI bound is not negative before log transform
+    decile_data[, ci_lower := pmax(epsilon, ci_lower)]
+    
     percentile_data[, (y_col) := log(get(y_col) + epsilon)]
     decile_data[, `:=`(
       mean = log(mean + epsilon),
@@ -93,17 +99,19 @@ create_r_style_plot <- function(df, y_col, x_col, main_title, y_label, save_path
   }
   
   # --- Plotting Layers (ggplot) ---
-  p <- ggplot(mapping = aes(color = race, linetype = race, group = race)) +
+  # Start with an empty ggplot object. Aesthetics are now defined in each layer.
+  p <- ggplot() +
     # 1. geom_point(shape = 4) for percentiles
-    geom_point(data = percentile_data, aes(x = percentile, y = .data[[y_col]]), shape = 4, alpha = 0.8) +
+    geom_point(data = percentile_data, aes(x = percentile, y = .data[[y_col]], color = race), shape = 4, alpha = 0.8) +
     
     # 2. geom_smooth(se = F, span = ...)
-    geom_smooth(data = percentile_data, aes(x = percentile, y = .data[[y_col]]), se = FALSE, method = "loess", formula = "y ~ x", span = span) +
+    geom_smooth(data = percentile_data, aes(x = percentile, y = .data[[y_col]], color = race, linetype = race, group = race), se = FALSE, method = "loess", formula = "y ~ x", span = span) +
     
     # 3. geom_pointrange() for deciles
-    geom_pointrange(data = decile_data, aes(x = decile_centered, y = mean, ymin = ci_lower, ymax = ci_upper), size = 0.7) +
+    geom_pointrange(data = decile_data, aes(x = decile_centered, y = mean, ymin = ci_lower, ymax = ci_upper, color = race), size = 0.7) +
     
     # --- Annotations ---
+    # These layers do not inherit the race aesthetic, which prevents the error.
     geom_vline(aes(xintercept = 97), color = "black", linetype = "dashed") +
     geom_text(aes(x = 96, y = vlocation_threshold, label = "Defaulted into program"), color = "black", hjust = 1, size = 3) +
     geom_vline(aes(xintercept = 55), color = "darkgray", linetype = "dashed") +
@@ -135,9 +143,9 @@ create_r_style_plot <- function(df, y_col, x_col, main_title, y_label, save_path
     )
   }
   
-  # --- Save Plot ---
-  ggsave(save_path, plot = p, width = 8, height = 7, dpi = 300)
-  print(paste("Saved plot to:", save_path))
+  # --- Display Plot ---
+  # Instead of ggsave, we now just print the plot object to display it.
+  print(p)
 }
 
 # ==============================================================================
@@ -148,25 +156,24 @@ cost_ticks <- c(1000, 3000, 8000, 20000, 60000)
 
 plots_to_generate <- list(
   list(y_col = 'cost_t', x_col = 'risk_score_t', title = 'Cost vs. Commercial Risk Score', y_label = 'Mean Total Medical Expenditure', use_log_scale = TRUE, y_ticks = cost_ticks, span = 0.45),
-  list(y_col = 'ghba1c_mean_t', x_col = 'risk_score_t', title = 'Diabetes Severity vs. Commercial Risk Score', y_label = 'Mean HbA1c (%)', span = 0.99),
-  list(y_col = 'bps_above_139_ind', x_col = 'risk_score_t', title = 'Hypertension vs. Commercial Risk Score', y_label = 'Fraction with Uncontrolled BP', span = 0.99)
+  # list(y_col = 'ghba1c_mean_t', x_col = 'risk_score_t', title = 'Diabetes Severity vs. Commercial Risk Score', y_label = 'Mean HbA1c (%)', span = 0.99),
+  # list(y_col = 'bps_above_139_ind', x_col = 'risk_score_t', title = 'Hypertension vs. Commercial Risk Score', y_label = 'Fraction with Uncontrolled BP', span = 0.99),
+  list(y_col = 'cost_t', x_col = 'benefit', title = 'Cost vs. Benefit', y_label = 'Mean Total Medical Expenditure', use_log_scale = TRUE, y_ticks = cost_ticks, span = 0.45)
 )
+
 
 # Loop through the definitions and create each plot
 for (plot_params in plots_to_generate) {
-  filename <- paste0("R_replica_", plot_params$y_col, "_vs_", plot_params$x_col, ".png")
   create_r_style_plot(
     df = df,
     y_col = plot_params$y_col,
     x_col = plot_params$x_col,
     main_title = plot_params$title,
     y_label = plot_params$y_label,
-    save_path = filename,
     span = plot_params$span,
     use_log_scale = !is.null(plot_params$use_log_scale) && plot_params$use_log_scale,
     y_ticks = plot_params$y_ticks
   )
 }
 
-print("All R-style replica plots have been generated and saved.")
-
+print("All R-style replica plots have been displayed.")
