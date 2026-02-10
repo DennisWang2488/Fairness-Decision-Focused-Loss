@@ -1,4 +1,3 @@
-import sys
 import warnings
 import cvxpy as cp
 import numpy as np
@@ -9,10 +8,12 @@ from torch import nn
 from torch.utils.data import Dataset, DataLoader
 from sklearn.preprocessing import StandardScaler
 
-# Custom utility modules (ensure these paths and modules are correct)
-sys.path.insert(0, 'E:\\User\\Stevens\\Code\\The Paper\\algorithm')
-from myutil import *
-from features import *
+try:
+    from .myutil import *  # noqa: F401,F403
+    from .features import *  # noqa: F401,F403
+except ImportError:
+    from myutil import *  # noqa: F401,F403
+    from features import *  # noqa: F401,F403
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings("ignore")

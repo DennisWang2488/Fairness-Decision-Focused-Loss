@@ -5,7 +5,11 @@ import pandas as pd
 import numpy as np
 import os
 import matplotlib.pyplot as plt
-import util
+
+try:
+    from . import util
+except ImportError:
+    import util
 
 def split_by_id(df, id_field='ptid', frac_train=.6):
     """Split the df by id_field into train/holdout deterministically.

@@ -5,9 +5,14 @@ import pandas as pd
 import numpy as np
 import os
 
-import features
-import model
-import util
+try:
+    from . import features
+    from . import model
+    from . import util
+except ImportError:
+    import features
+    import model
+    import util
 
 
 def load_data_df():

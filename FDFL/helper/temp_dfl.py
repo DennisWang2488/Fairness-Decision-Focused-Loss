@@ -5,7 +5,6 @@
 import cvxpy as cp
 import numpy as np
 import warnings
-import sys
 from IPython.core.interactiveshell import InteractiveShell
 from sklearn.preprocessing import StandardScaler
 import torch
@@ -17,10 +16,12 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.model_selection import train_test_split
 
-sys.path.insert(0, 'E:\\User\\Stevens\\Code\\The Paper\\algorithm')
-
-from myutil import *
-from features import get_all_features
+try:
+    from .myutil import *  # noqa: F401,F403
+    from .features import get_all_features
+except ImportError:
+    from myutil import *  # noqa: F401,F403
+    from features import get_all_features
 
 # Suppress warnings
 warnings.filterwarnings("ignore")

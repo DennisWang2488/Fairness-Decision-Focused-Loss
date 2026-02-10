@@ -1,18 +1,22 @@
 import math
 import sys
+from pathlib import Path
 import numpy as np
 import cvxpy as cp
 import torch
 from torch import nn
 
-# Add necessary paths to sys.path
-sys.path.insert(0, 'E:\\User\\Stevens\\Code\\Fold-opt\\fold_opt')
-sys.path.insert(0, 'E:\\User\\Stevens\\MyRepo\\FDFL\\helper')
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FOLD_OPT_DIR = REPO_ROOT / "fold-opt-package" / "fold_opt"
+if str(FOLD_OPT_DIR) not in sys.path:
+    sys.path.insert(0, str(FOLD_OPT_DIR))
 
-# Import custom modules
-from GMRES import *
-from fold_opt import *
-from myutil import *
+from fold_opt import FoldOptLayer
+
+try:
+    from .myutil import solve_closed_form
+except ImportError:
+    from myutil import solve_closed_form
 
 
 # ---------------- little utilities ---------------------------------

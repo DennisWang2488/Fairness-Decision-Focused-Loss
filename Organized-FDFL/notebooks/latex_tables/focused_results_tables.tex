@@ -1,0 +1,70 @@
+% Focused comparison tables for main results section
+% Settings: MAD fairness, NN predictor, Group alpha fairness objective
+% Required packages:
+% \usepackage{booktabs}
+% \usepackage{array}
+
+\begin{table}[ht]
+\centering
+\caption{Decision Regret comparison (MAD fairness, NN predictor, group alpha fairness objective)}
+\label{tab:focused_decision_regret_mad_nn_group}
+\footnotesize
+\begin{tabular}{llcc}
+\toprule
+Algorithm & Lambda & $\alpha = 0.5$ & $\alpha = 2.0$ \\
+\midrule
+FPTO & $0$ (no fairness) & $0.0176$ ± $0.0004$ & $0.0983$ ± $0.0018$ \\
+FPTO & $0.5$ & $0.0179$ ± $0.0011$ & $0.0968$ ± $0.0039$ \\
+FoldOpt & $0$ (no fairness) & $0.1325$ ± $0.0039$ & $0.1195$ ± $0.0068$ \\
+FoldOpt & $0.5$ & $0.1325$ ± $0.0039$ & $0.1347$ ± $0.0138$ \\
+FDFL-CF & $0$ (no fairness) & $0.0189$ ± $0.0012$ & $0.0358$ ± $0.0005$ \\
+FDFL-CF & $0.5$ & $0.0763$ ± $0.0013$ & $0.0425$ ± $0.0001$ \\
+FDFL-FD & $0$ (no fairness) & $0.0223$ ± $0.0035$ & $0.0544$ ± $0.0041$ \\
+FDFL-FD & $0.5$ & $0.0810$ ± $0.0007$ & $0.0618$ ± $0.0088$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\caption{Prediction MSE comparison (MAD fairness, NN predictor, group alpha fairness objective)}
+\label{tab:focused_prediction_mse_mad_nn_group}
+\footnotesize
+\begin{tabular}{llcc}
+\toprule
+Algorithm & Lambda & $\alpha = 0.5$ & $\alpha = 2.0$ \\
+\midrule
+FPTO & $0$ (no fairness) & $35.4627$ ± $1.2644$ & $35.4627$ ± $1.2644$ \\
+FPTO & $0.5$ & $35.2676$ ± $2.0286$ & $35.2676$ ± $2.0286$ \\
+FoldOpt & $0$ (no fairness) & $363.7616$ ± $15.4504$ & $366.9125$ ± $18.7837$ \\
+FoldOpt & $0.5$ & $363.7616$ ± $15.4504$ & $328.9056$ ± $22.5657$ \\
+FDFL-CF & $0$ (no fairness) & $207.9338$ ± $12.7443$ & $119.3416$ ± $2.8384$ \\
+FDFL-CF & $0.5$ & $220.4741$ ± $9.3006$ & $106.9212$ ± $3.0555$ \\
+FDFL-FD & $0$ (no fairness) & $246.7065$ ± $41.6353$ & $188.4053$ ± $32.0814$ \\
+FDFL-FD & $0.5$ & $257.7810$ ± $7.9979$ & $190.4567$ ± $13.8893$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[ht]
+\centering
+\caption{Training Time comparison (MAD fairness, NN predictor, group alpha fairness objective)}
+\label{tab:focused_training_time_mad_nn_group}
+\footnotesize
+\begin{tabular}{llcc}
+\toprule
+Algorithm & Lambda & $\alpha = 0.5$ & $\alpha = 2.0$ \\
+\midrule
+FPTO & $0$ (no fairness) & $1.2987$ ± $0.0048$ & $1.2996$ ± $0.0329$ \\
+FPTO & $0.5$ & $1.3070$ ± $0.0671$ & $1.2913$ ± $0.0412$ \\
+FoldOpt & $0$ (no fairness) & $5.5577$ ± $0.0307$ & $5.5543$ ± $0.0590$ \\
+FoldOpt & $0.5$ & $5.4976$ ± $0.0547$ & $5.5451$ ± $0.0407$ \\
+FDFL-CF & $0$ (no fairness) & $7.6495$ ± $0.0986$ & $10.1872$ ± $0.0213$ \\
+FDFL-CF & $0.5$ & $3.2721$ ± $0.0649$ & $10.2478$ ± $0.1541$ \\
+FDFL-FD & $0$ (no fairness) & $78.2144$ ± $4.0072$ & $103.6114$ ± $0.4983$ \\
+FDFL-FD & $0.5$ & $30.1630$ ± $0.2920$ & $102.2925$ ± $0.7698$ \\
+\bottomrule
+\end{tabular}
+\end{table}

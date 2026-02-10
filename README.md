@@ -1,118 +1,58 @@
-# FDFL - End-to-End Fairness Optimization
+# Fairness Decision Focused Learning (FDFL)
 
-A research codebase for studying **end-to-end fairness optimization** via decision-focused learning (FDFL). We compare two-stage vs. end-to-end methods under various fairness regimes, using real-world or synthetic motivating examples.
+Research workspace for end-to-end fairness optimization with decision-focused learning.
 
-## Table of Contents
+This repository now separates active code, legacy experiments, and third-party method snapshots.
 
-- [Project Overview](#project-overview)  
-- [Folders](#Folders)  
-  - [Organized-FDFL](#organized-fdfl)  
-  - [FDFL](#fdfl-facct-submission)  
-  - [Fold-Opt Layer](#fold-opt-layer)  
+## Project Scope
 
-## Folders
+- Main topic: prediction-to-decision learning with fairness-aware objectives.
+- Current focus: individual/group alpha-fair optimization in healthcare resource allocation.
+- Paper artifact (workspace result): `docs/paper/end-to-end-fairness-optimization-with-fair-decision-focused-learning.pdf`
 
-- **Organized-FDFL**: Current Workspace, with both ind+group alpha and more prediction fairness
-- **FDFL**: FACCT submission codes, containing individual alpha-fair + acc_parity
-- **Fold-Opt Layer**: Original Fold-Opt package
-- [Installation](#installation)  
-- [Usage](#usage) 
+## Repository Map
 
-## Project Overview
+| Path | Role | Status |
+|---|---|---|
+| `Organized-FDFL/` | Main maintained workspace (recommended entrypoint) | Active |
+| `FDFL/` | Earlier FACCT-era code and notebooks | Legacy |
+| `fold-opt-package/` | Fold-Opt source snapshot + examples | Third-party snapshot |
+| `LANCER-package/` | LANCER source snapshot | Third-party snapshot |
+| `prelim exam materials (wasted)/` | Historical scratch materials | Archive |
+| `Graphics/` | Output figures and legacy plot exports | Assets |
+| `scripts/` | Maintenance scripts (cleanup + legacy root scripts) | Utility |
 
-We address the gap between **prediction fairness** and **decision fairness**, proposing an end-to-end framework that:
-1. Predicts multi-treatment benefits $\hat b_{i}$ with prediction fairness.  
-2. Allocates resources $d_{i}$ to maximize a individual or group $\alpha$-fair utility  
-3. Compares four pipelines:  
-   - M1: Two-stage, unconstrained prediction → fair decision  
-   - M2: Two-stage, fair prediction → fair decision  
-   - M3: End-to-end prediction → fair decision  
-   - M4: End-to-end fair prediction → fair decision  
----
-
-## Projects
-
-### Organized-FDFL
-
-The main workspace for ongoing development, supporting both individual and group alpha-fairness, as well as enhanced prediction fairness.
-
-- **`src/utils/`**  
-  – Core helpers for optimization, regret calculation, feature processing, and plotting  
-- **`src/fairness/`**  
-  – Implementations of individual/group fairness penalties  
-- **`src/models/`**  
-  – JSON-driven model configurations and wrappers  
-- **`tests/`**  
-  – Jupyter notebooks demonstrating closed-form, finite-difference, and Fold-Opt methods  
-
-<details>
-<summary>Key Notebooks</summary>
-
-- `notebooks/FDFL-ind`: Exact copy of the FACCT version for individual alpha-fairness and accuracy parity, with 2-stage, closed-form, and finite-difference gradient methods.
-- `notebooks/FDFL-group-fold-opt-working`: Fold-Opt on ind+group-alpha fairness.
-- `notebooks/data_processing.ipynb`: Data preparation and processing for the new problem formulation, including updated utility (benefit) and cost.
-- `notebooks/runClosedForm.ipynb`: Implements group and individual alpha-fairness using finite-difference and closed-form methods.
-- `notebooks/runTwoStage.ipynb`: Runs the 2-stage version for group and individual alpha-fairness.
-
-</details>
-
-
-### FDFL (FACCT Submission)
-
-End-to-end experimental code used in the FACCT paper:
-
-- **FDFL/Training Notebooks** has the code for training instances.
-
-- **Gradient Methods**: Closed-form, Fold-Opt, LANCER, CVXPYLayer, finite-difference benchmarks  
-- **Key Notebooks**:  
-  – `FDFL-temp-cvxpylayer-LR.ipynb`  
-  – `FDFL-temp-fold-opt.ipynb`  
-  – `FDFL.ipynb`
-
-
-
-## TODO
-
-- Change min-risk from 0.001 to 1 and verify Individual and Group Regret Performance (Done)
-
-- Write fold-opt subsection.
-
-- For group, report group-wise performance (MSE and Decision Solution&Objective)
-  - Closed-Form, Finite-diff, and fold-opt.
-
-- <b>For Fold-OPT Change PGD closed-form to solver</b>
-
-
----
-
-## Installation
+## Quick Start (Main Workflow)
 
 ```bash
-# Clone the repo
-
-
-# Install the core package
+# from repo root
+pip install -r Organized-FDFL/requirements.txt
 pip install -e Organized-FDFL/
+```
 
-# Or try this in the Organized-FDFL dir
-pip install -e .
+Then use notebooks in `Organized-FDFL/notebooks/`:
 
-# (import fold-opt directly, or install with downloading it from github)
-pip install -e fold-opt-package/fold_opt/
-# Similar for PyEPO, LANCER and lcgln package
+- `runClosedForm.ipynb`
+- `runTwoStage.ipynb`
+- `runFoldOPT.ipynb` (if fold-opt dependencies are available)
 
-# Notebook dependencies
-pip install -r /Organized-FDFL/requirements.txt
+## External Methods (LANCER, LCGLN, etc.)
 
+- `LANCER-package/` is included as a reference snapshot and can be run independently following its own docs.
+- Fold-Opt code is included under `fold-opt-package/`.
+- `LCGLN` is referenced in project planning but not implemented as a standalone package in this repository yet.
 
-# Package Structure
-Organized-FDFL/
-├── notebook/            # Jupyter notebooks for experiments and analysis
-├── src/
-│   ├── data/            # data loading and preprocessing scripts
-│   ├── utils/           # core helpers (optimization, regret, features, plots)
-│   ├── models/          # JSON configs & model glue code
-│   └── fairness/        # fairness-penalty implementations
-├── tests/               # Testing new function
-└── setup.py             # package install script
+## Cleanup and Maintenance
 
+Use the cleanup script to remove cache/build artifacts:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts/cleanup_workspace.ps1
+```
+
+Ignored noise patterns are tracked in root `.gitignore` (pycache, build folders, egg-info, notebook checkpoints, profile files).
+
+## Notes
+
+- Legacy folders are preserved for reproducibility and historical comparison.
+- For new development, prefer adding code under `Organized-FDFL/` and keep notebooks/results organized inside that folder.

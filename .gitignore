@@ -1,0 +1,21 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Jupyter cache
+.ipynb_checkpoints/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Profiling and local scratch
+*.lprof
+.Rhistory
+.RData
+
+# OS/editor metadata
+.DS_Store
+Thumbs.db

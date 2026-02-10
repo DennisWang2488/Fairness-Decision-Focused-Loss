@@ -6,6 +6,7 @@ import warnings
 import time
 import copy
 import json
+from pathlib import Path
 from datetime import datetime
 from itertools import product
 
@@ -30,11 +31,12 @@ from pyepo.model.opt import optModel
 # Suppress warnings
 warnings.filterwarnings("ignore")
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FOLD_OPT_DIR = REPO_ROOT / "fold-opt-package" / "fold_opt"
+if str(FOLD_OPT_DIR) not in sys.path:
+    sys.path.insert(0, str(FOLD_OPT_DIR))
 
-sys.path.insert(0, 'E:\\User\\Stevens\\MyRepo\\FDFL\\helper')
-sys.path.insert(0, 'E:\\User\\Stevens\\MyRepo\\fold-opt-package\\fold_opt')
-from GMRES import *
-from fold_opt import *
+from fold_opt import FoldOptLayer
 
 
 def proj_budget(x, cost, Q, max_iter=60):

@@ -1,0 +1,17 @@
+Algorithm,Alpha,Lambda,Lambda_Label,Value,StdDev,Metric
+FoldOpt,0.5,0.0,No Fairness (λ=0),91.84737506789156,8.190338571816511,Prediction_Fairness
+FoldOpt,0.5,0.5,With Fairness (λ=0.5),91.84737506789156,8.190338571816511,Prediction_Fairness
+FoldOpt,2.0,0.0,No Fairness (λ=0),92.0643873863602,6.958481712678439,Prediction_Fairness
+FoldOpt,2.0,0.5,With Fairness (λ=0.5),58.86777898632565,12.095581324683168,Prediction_Fairness
+FDFL-CF,0.5,0.0,No Fairness (λ=0),24.568641662597656,3.0886459350585938,Prediction_Fairness
+FDFL-CF,0.5,0.5,With Fairness (λ=0.5),31.99480438232422,4.449798583984375,Prediction_Fairness
+FDFL-CF,2.0,0.0,No Fairness (λ=0),32.47385597229004,0.4682064056396484,Prediction_Fairness
+FDFL-CF,2.0,0.5,With Fairness (λ=0.5),21.197660446166992,2.926706314086914,Prediction_Fairness
+FDFL-FD,0.5,0.0,No Fairness (λ=0),39.492942810058594,11.495750427246094,Prediction_Fairness
+FDFL-FD,0.5,0.5,With Fairness (λ=0.5),26.55328369140625,1.266937255859375,Prediction_Fairness
+FDFL-FD,2.0,0.0,No Fairness (λ=0),51.039459228515625,6.1236724853515625,Prediction_Fairness
+FDFL-FD,2.0,0.5,With Fairness (λ=0.5),30.294239044189453,0.3262214660644531,Prediction_Fairness
+FPTO,0.5,0.0,No Fairness (λ=0),1.7343845,0.104450226,Prediction_Fairness
+FPTO,2.0,0.0,No Fairness (λ=0),1.7343845,0.104450226,Prediction_Fairness
+FPTO,0.5,0.5,With Fairness (λ=0.5),1.8322086,0.32606125,Prediction_Fairness
+FPTO,2.0,0.5,With Fairness (λ=0.5),1.8322086,0.32606125,Prediction_Fairness

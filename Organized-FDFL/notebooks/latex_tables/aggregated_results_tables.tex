@@ -1,0 +1,48 @@
+% Aggregated comparison tables by alpha value
+% Settings: MAD fairness, NN predictor, Group alpha fairness objective
+% Required packages:
+% \usepackage{booktabs}
+% \usepackage{array}
+
+\begin{table}[htbp]
+\centering
+\caption{Algorithm comparison for $\alpha = 0.5$ (MAD fairness, NN predictor, group alpha fairness objective)}
+\label{tab:aggregated_alpha_0_5_mad_nn_group}
+\footnotesize
+\begin{tabular}{llcccc}
+\toprule
+Algorithm & Lambda & Decision Regret & Prediction MSE & Prediction Fairness & Training Time \\
+\midrule
+FoldOpt & $0$ (no fairness) & $0.1325$ ± $0.0039$ & $363.7616$ ± $15.4504$ & $91.8474$ ± $8.1903$ & $5.5577$ ± $0.0307$ \\
+FoldOpt & $0.5$ & $0.1325$ ± $0.0039$ & $363.7616$ ± $15.4504$ & $91.8474$ ± $8.1903$ & $5.4976$ ± $0.0547$ \\
+FDFL-CF & $0$ (no fairness) & $0.0189$ ± $0.0012$ & $207.9338$ ± $12.7443$ & $24.5686$ ± $3.0886$ & $7.6495$ ± $0.0986$ \\
+FDFL-CF & $0.5$ & $0.0763$ ± $0.0013$ & $220.4741$ ± $9.3006$ & $31.9948$ ± $4.4498$ & $3.2721$ ± $0.0649$ \\
+FDFL-FD & $0$ (no fairness) & $0.0223$ ± $0.0035$ & $246.7065$ ± $41.6353$ & $39.4929$ ± $11.4958$ & $78.2144$ ± $4.0072$ \\
+FDFL-FD & $0.5$ & $0.0810$ ± $0.0007$ & $257.7810$ ± $7.9979$ & $26.5533$ ± $1.2669$ & $30.1630$ ± $0.2920$ \\
+FPTO & $0$ (no fairness) & $0.0176$ ± $0.0004$ & $35.4627$ ± $1.2644$ & $1.7344$ ± $0.1045$ & $1.2987$ ± $0.0048$ \\
+FPTO & $0.5$ & $0.0179$ ± $0.0011$ & $35.2676$ ± $2.0286$ & $1.8322$ ± $0.3261$ & $1.3070$ ± $0.0671$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+
+\begin{table}[htbp]
+\centering
+\caption{Algorithm comparison for $\alpha = 2.0$ (MAD fairness, NN predictor, group alpha fairness objective)}
+\label{tab:aggregated_alpha_2_0_mad_nn_group}
+\footnotesize
+\begin{tabular}{llcccc}
+\toprule
+Algorithm & Lambda & Decision Regret & Prediction MSE & Prediction Fairness & Training Time \\
+\midrule
+FoldOpt & $0$ (no fairness) & $0.1195$ ± $0.0068$ & $366.9125$ ± $18.7837$ & $92.0644$ ± $6.9585$ & $5.5543$ ± $0.0590$ \\
+FoldOpt & $0.5$ & $0.1347$ ± $0.0138$ & $328.9056$ ± $22.5657$ & $58.8678$ ± $12.0956$ & $5.5451$ ± $0.0407$ \\
+FDFL-CF & $0$ (no fairness) & $0.0358$ ± $0.0005$ & $119.3416$ ± $2.8384$ & $32.4739$ ± $0.4682$ & $10.1872$ ± $0.0213$ \\
+FDFL-CF & $0.5$ & $0.0425$ ± $0.0001$ & $106.9212$ ± $3.0555$ & $21.1977$ ± $2.9267$ & $10.2478$ ± $0.1541$ \\
+FDFL-FD & $0$ (no fairness) & $0.0544$ ± $0.0041$ & $188.4053$ ± $32.0814$ & $51.0395$ ± $6.1237$ & $103.6114$ ± $0.4983$ \\
+FDFL-FD & $0.5$ & $0.0618$ ± $0.0088$ & $190.4567$ ± $13.8893$ & $30.2942$ ± $0.3262$ & $102.2925$ ± $0.7698$ \\
+FPTO & $0$ (no fairness) & $0.0983$ ± $0.0018$ & $35.4627$ ± $1.2644$ & $1.7344$ ± $0.1045$ & $1.2996$ ± $0.0329$ \\
+FPTO & $0.5$ & $0.0968$ ± $0.0039$ & $35.2676$ ± $2.0286$ & $1.8322$ ± $0.3261$ & $1.2913$ ± $0.0412$ \\
+\bottomrule
+\end{tabular}
+\end{table}
